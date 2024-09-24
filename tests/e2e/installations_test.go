@@ -77,6 +77,73 @@ var _ = Describe("Observability Installation Test Suite", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(isUsingRegistry).To(BeTrue(), "Checking if using correct registry prefix")
 	})
+
+	It("Should install Alerting chart if not already installed", func() {
+		clientWithSession, err := client.WithSession(sess)
+		Expect(err).NotTo(HaveOccurred())
+
+		alertingChart, err := extencharts.GetChartStatus(clientWithSession, project.ClusterID, charts.RancherAlertingNamespace, charts.RancherAlertingName)
+		Expect(err).NotTo(HaveOccurred())
+
+		if !alertingChart.IsAlreadyInstalled {
+			// Get latest versions of alerting
+			latestAlertingVersion, err := clientWithSession.Catalog.GetLatestChartVersion(charts.RancherAlertingName, catalog.RancherChartRepo)
+			Expect(err).NotTo(HaveOccurred())
+
+			alertingChartInstallOption := &charts.InstallOptions{
+				Cluster:   cluster,
+				Version:   latestAlertingVersion,
+				ProjectID: project.ID,
+			}
+
+			alertingFeatureOption := &charts.RancherAlertingOpts{
+				SMS:   true,
+				Teams: true,
+			}
+
+			By("Installing alerting chart with the latest version")
+			err = charts.InstallRancherAlertingChart(clientWithSession, alertingChartInstallOption, alertingFeatureOption)
+			Expect(err).NotTo(HaveOccurred())
+		}
+
+		By("Checking if the correct registry prefix is used")
+		isUsingRegistry, err := registries.CheckAllClusterPodsForRegistryPrefix(clientWithSession, cluster.ID, registrySetting.Value)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(isUsingRegistry).To(BeTrue(), "Checking if using correct registry prefix")
+	})
+
+	It("Should install Logging chart if not already installed", func() {
+		clientWithSession, err := client.WithSession(sess)
+		Expect(err).NotTo(HaveOccurred())
+
+		loggingChart, err := extencharts.GetChartStatus(clientWithSession, project.ClusterID, charts.RancherLoggingNamespace, charts.RancherLoggingName)
+		Expect(err).NotTo(HaveOccurred())
+
+		if !loggingChart.IsAlreadyInstalled {
+			// Get latest versions of logging
+			latestLoggingVersion, err := clientWithSession.Catalog.GetLatestChartVersion(charts.RancherLoggingName, catalog.RancherChartRepo)
+			Expect(err).NotTo(HaveOccurred())
+
+			loggingChartInstallOption := &charts.InstallOptions{
+				Cluster:   cluster,
+				Version:   latestLoggingVersion,
+				ProjectID: project.ID,
+			}
+
+			loggingChartFeatureOption := &charts.RancherLoggingOpts{
+				AdditionalLoggingSources: true,
+			}
+
+			By("Installing logging chart with the latest version")
+			err = charts.InstallRancherLoggingChart(clientWithSession, loggingChartInstallOption, loggingChartFeatureOption)
+			Expect(err).NotTo(HaveOccurred())
+		}
+
+		By("Checking if the correct registry prefix is used")
+		isUsingRegistry, err := registries.CheckAllClusterPodsForRegistryPrefix(clientWithSession, cluster.ID, registrySetting.Value)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(isUsingRegistry).To(BeTrue(), "Checking if using correct registry prefix")
+	})
 })
 
 func TestGinkgoSuite(t *testing.T) {

@@ -75,6 +75,6 @@ var _ = BeforeSuite(func() {
 })
 
 // This teardown will run once after all the tests in the suite are done
-// var _ = AfterSuite(func() {
-// 	sess.Cleanup()
-// })
+var _ = AfterSuite(func() {
+	sess.Cleanup()
+})
