@@ -19,6 +19,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/rancher/rancher/tests/v2/actions/charts"
 	"github.com/rancher/rancher/tests/v2/actions/registries"
+	"github.com/rancher/shepherd/clients/rancher"
 	"github.com/rancher/shepherd/clients/rancher/catalog"
 	extencharts "github.com/rancher/shepherd/extensions/charts"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,11 +28,16 @@ import (
 const exampleAppProjectName = "demo-project"
 
 var _ = Describe("Observability Installation Test Suite", func() {
+	var clientWithSession *rancher.Client
+	var err error
+
+	BeforeEach(func() {
+		By("Creating a client session")
+		clientWithSession, err = client.WithSession(sess)
+		Expect(err).NotTo(HaveOccurred())
+	})
 
 	It("Should install monitoring chart if not already installed", func() {
-		clientWithSession, err := client.WithSession(sess)
-		Expect(err).NotTo(HaveOccurred())
-
 		By("Checking if the monitoring chart is already installed")
 		initialMonitoringChart, err := extencharts.GetChartStatus(clientWithSession, project.ClusterID, charts.RancherMonitoringNamespace, charts.RancherMonitoringName)
 		Expect(err).NotTo(HaveOccurred())
@@ -79,9 +85,6 @@ var _ = Describe("Observability Installation Test Suite", func() {
 	})
 
 	It("Should install Alerting chart if not already installed", func() {
-		clientWithSession, err := client.WithSession(sess)
-		Expect(err).NotTo(HaveOccurred())
-
 		alertingChart, err := extencharts.GetChartStatus(clientWithSession, project.ClusterID, charts.RancherAlertingNamespace, charts.RancherAlertingName)
 		Expect(err).NotTo(HaveOccurred())
 
@@ -113,9 +116,6 @@ var _ = Describe("Observability Installation Test Suite", func() {
 	})
 
 	It("Should install Logging chart if not already installed", func() {
-		clientWithSession, err := client.WithSession(sess)
-		Expect(err).NotTo(HaveOccurred())
-
 		loggingChart, err := extencharts.GetChartStatus(clientWithSession, project.ClusterID, charts.RancherLoggingNamespace, charts.RancherLoggingName)
 		Expect(err).NotTo(HaveOccurred())
 

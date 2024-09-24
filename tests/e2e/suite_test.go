@@ -31,6 +31,7 @@ var (
 	project         *management.Project
 	cluster         *clusters.ClusterMeta
 	registrySetting *management.Setting
+	err             error
 )
 
 func FailWithReport(message string, callerSkip ...int) {
@@ -40,12 +41,11 @@ func FailWithReport(message string, callerSkip ...int) {
 
 func TestE2E(t *testing.T) {
 	RegisterFailHandler(FailWithReport)
-	RunSpecs(t, "Monitoring End-To-End Test Suite")
+	RunSpecs(t, "Observability End-To-End Test Suite")
 }
 
 // This setup will run once for the entire test suite
 var _ = BeforeSuite(func() {
-	var err error
 	testSession := session.NewSession()
 	sess = testSession
 
