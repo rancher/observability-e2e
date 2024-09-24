@@ -15,6 +15,8 @@ limitations under the License.
 package e2e_test
 
 import (
+	"testing"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/rancher/shepherd/clients/rancher"
@@ -22,8 +24,6 @@ import (
 	"github.com/rancher/shepherd/extensions/clusters"
 	"github.com/rancher/shepherd/pkg/session"
 )
-
-const exampleAppProjectName = "demo-project"
 
 var (
 	client          *rancher.Client
@@ -38,10 +38,10 @@ func FailWithReport(message string, callerSkip ...int) {
 	Fail(message, callerSkip[0]+1)
 }
 
-// func TestE2E(t *testing.T) {
-// 	RegisterFailHandler(FailWithReport)
-// 	RunSpecs(t, "Monitoring End-To-End Test Suite")
-// }
+func TestE2E(t *testing.T) {
+	RegisterFailHandler(FailWithReport)
+	RunSpecs(t, "Monitoring End-To-End Test Suite")
+}
 
 // This setup will run once for the entire test suite
 var _ = BeforeSuite(func() {

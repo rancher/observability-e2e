@@ -15,8 +15,6 @@ limitations under the License.
 package e2e_test
 
 import (
-	"testing"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/rancher/rancher/tests/v2/actions/charts"
@@ -25,6 +23,8 @@ import (
 	extencharts "github.com/rancher/shepherd/extensions/charts"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+const exampleAppProjectName = "demo-project"
 
 var _ = Describe("Observability Installation Test Suite", func() {
 
@@ -146,7 +146,7 @@ var _ = Describe("Observability Installation Test Suite", func() {
 	})
 })
 
-func TestGinkgoSuite(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Installation Test Suite")
-}
+// func TestGinkgoSuite(t *testing.T) {
+// 	RegisterFailHandler(Fail)
+// 	RunSpecs(t, "Installation Test Suite")
+// }
