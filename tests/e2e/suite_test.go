@@ -19,10 +19,10 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/rancher/shepherd/clients/rancher"
+	rancher "github.com/rancher/shepherd/clients/rancher"
 	management "github.com/rancher/shepherd/clients/rancher/generated/management/v3"
-	"github.com/rancher/shepherd/extensions/clusters"
-	"github.com/rancher/shepherd/pkg/session"
+	clusters "github.com/rancher/shepherd/extensions/clusters"
+	session "github.com/rancher/shepherd/pkg/session"
 )
 
 var (
