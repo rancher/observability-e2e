@@ -26,16 +26,6 @@ type InstallOptions struct {
 	ProjectID string
 }
 
-// payloadOpts is a private struct that contains the options for the chart payloads.
-// It is used to avoid passing the same options to different functions while using the chart helpers.
-type payloadOpts struct {
-	InstallOptions
-	Name            string
-	Namespace       string
-	Host            string
-	DefaultRegistry string
-}
-
 // RancherMonitoringOpts is a struct of the required options to install Rancher Monitoring with desired chart values.
 type RancherMonitoringOpts struct {
 	IngressNginx      bool `json:"ingressNginx" yaml:"ingressNginx"`
@@ -61,17 +51,6 @@ type RancherAlertingOpts struct {
 type GetChartCaseEndpointResult struct {
 	Ok   bool
 	Body string
-}
-
-// newChartUninstallAction is a private constructor that creates a default payload for chart uninstall action with all disabled options.
-func newChartUninstallAction() *types.ChartUninstallAction {
-	return &types.ChartUninstallAction{
-		DisableHooks: false,
-		DryRun:       false,
-		KeepHistory:  false,
-		Timeout:      nil,
-		Description:  "",
-	}
 }
 
 // newChartInstallAction is a private constructor that creates a payload for chart install action with given namespace, projectID, and chartInstalls.

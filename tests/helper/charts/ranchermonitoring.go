@@ -14,6 +14,7 @@ import (
 	"github.com/rancher/shepherd/pkg/api/steve/catalog/types"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 )
 
 const (
@@ -24,16 +25,19 @@ const (
 
 // InstallRancherMonitoringChart installs the rancher-monitoring chart with a timeout.
 func InstallRancherMonitoringChart(client *rancher.Client, installOptions *InstallOptions, rancherMonitoringOpts *RancherMonitoringOpts) error {
+	// Retrieve the server URL setting.
 	serverSetting, err := client.Management.Setting.ByID(serverURLSettingID)
 	if err != nil {
 		return err
 	}
+
+	// Retrieve the default registry setting.
 	registrySetting, err := client.Management.Setting.ByID(defaultRegistrySettingID)
 	if err != nil {
 		return err
 	}
 
-	// Prepare monitoring values
+	// Prepare the monitoring values with default Prometheus configurations.
 	monitoringValues := map[string]interface{}{
 		"prometheus": map[string]interface{}{
 			"prometheusSpec": map[string]interface{}{
@@ -43,7 +47,8 @@ func InstallRancherMonitoringChart(client *rancher.Client, installOptions *Insta
 			},
 		},
 	}
-	// Add provider-specific options
+
+	// Convert rancherMonitoringOpts to a map for easier manipulation.
 	optsBytes, err := json.Marshal(rancherMonitoringOpts)
 	if err != nil {
 		return err
@@ -52,64 +57,100 @@ func InstallRancherMonitoringChart(client *rancher.Client, installOptions *Insta
 	if err = json.Unmarshal(optsBytes, &optsMap); err != nil {
 		return err
 	}
-	for k, v := range optsMap {
+
+	// Add provider-specific options to the monitoring values.
+	for key, value := range optsMap {
 		var newKey string
-		if k == "ingressNginx" && installOptions.Cluster.Provider == clusters.KubernetesProviderRKE {
-			newKey = k
+		// Special case for "ingressNginx" when using RKE provider.
+		if key == "ingressNginx" && installOptions.Cluster.Provider == clusters.KubernetesProviderRKE {
+			newKey = key
 		} else {
-			newKey = fmt.Sprintf("%v%v%v", installOptions.Cluster.Provider, strings.ToUpper(string(k[0])), k[1:])
+			// Format the key based on the cluster provider and option name.
+			newKey = fmt.Sprintf("%v%v%v", installOptions.Cluster.Provider, strings.ToUpper(string(key[0])), key[1:])
 		}
-		monitoringValues[newKey] = map[string]interface{}{"enabled": v}
+		monitoringValues[newKey] = map[string]interface{}{"enabled": value}
 	}
 
-	// Create chart install action
-	chartInstall := newChartInstall(RancherMonitoringName, installOptions.Version, installOptions.Cluster.ID,
-		installOptions.Cluster.Name, serverSetting.Value, rancherChartsName, installOptions.ProjectID,
-		registrySetting.Value, monitoringValues)
-	chartInstallCRD := newChartInstall(RancherMonitoringCRDName, installOptions.Version, installOptions.Cluster.ID,
-		installOptions.Cluster.Name, serverSetting.Value, rancherChartsName, installOptions.ProjectID,
-		registrySetting.Value, nil)
+	// Create chart install configurations for the CRD and the main chart.
+	chartInstallCRD := newChartInstall(
+		RancherMonitoringCRDName,
+		installOptions.Version,
+		installOptions.Cluster.ID,
+		installOptions.Cluster.Name,
+		serverSetting.Value,
+		rancherChartsName,
+		installOptions.ProjectID,
+		registrySetting.Value,
+		nil,
+	)
+	chartInstall := newChartInstall(
+		RancherMonitoringName,
+		installOptions.Version,
+		installOptions.Cluster.ID,
+		installOptions.Cluster.Name,
+		serverSetting.Value,
+		rancherChartsName,
+		installOptions.ProjectID,
+		registrySetting.Value,
+		monitoringValues,
+	)
+
+	// Combine both chart installations.
 	chartInstalls := []types.ChartInstall{*chartInstallCRD, *chartInstall}
 	chartInstallAction := newChartInstallAction(RancherMonitoringNamespace, installOptions.ProjectID, chartInstalls)
 
+	// Get the catalog client for the cluster.
 	catalogClient, err := client.GetClusterCatalogClient(installOptions.Cluster.ID)
 	if err != nil {
 		return err
 	}
 
-	// Install the chart
+	// Install the chart using the catalog client.
 	if err = catalogClient.InstallChart(chartInstallAction, catalog.RancherChartRepo); err != nil {
 		return err
 	}
 
-	// Wait for the chart to be fully deployed with a timeout
-	//TODO: Need to add wait poll instread of ticker
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-	defer cancel()
+	// Define the polling interval and timeout duration.
+	interval := 10 * time.Second
+	timeout := 10 * time.Minute
 
-	ticker := time.NewTicker(10 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return fmt.Errorf("timeout: rancher-monitoring chart was not installed within 10 minutes")
-		case <-ticker.C:
-			app, err := catalogClient.Apps(RancherMonitoringNamespace).Get(context.TODO(), RancherMonitoringName, metav1.GetOptions{})
-			if err != nil {
-				if apierrors.IsNotFound(err) {
-					// App not yet created, continue waiting
-					continue
-				}
-				return err
+	// Start polling to check the deployment status.
+	err = wait.Poll(interval, timeout, func() (bool, error) {
+		// Attempt to get the app from the catalog.
+		app, err := catalogClient.Apps(RancherMonitoringNamespace).Get(context.TODO(), RancherMonitoringName, metav1.GetOptions{})
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				// The app is not yet created; continue waiting.
+				return false, nil
 			}
-			state := app.Status.Summary.State
-			if state == string(catalogv1.StatusDeployed) {
-				return nil
-			}
-			if state == string(catalogv1.StatusFailed) {
-				return fmt.Errorf("failed to install rancher-monitoring chart")
-			}
+			// An error occurred; stop waiting and return the error.
+			return false, err
 		}
+
+		// Check the deployment status of the app.
+		state := app.Status.Summary.State
+
+		switch state {
+		case string(catalogv1.StatusDeployed):
+			// The app has been successfully deployed.
+			return true, nil
+		case string(catalogv1.StatusFailed):
+			// The app failed to deploy.
+			return false, fmt.Errorf("failed to install rancher-monitoring chart")
+		default:
+			// The app is still deploying; continue waiting.
+			return false, nil
+		}
+	})
+
+	// Handle the result of the polling.
+	if err != nil {
+		if wait.Interrupted(err) {
+			return fmt.Errorf("timeout: rancher-monitoring chart was not installed within 10 minutes")
+		}
+		return err
 	}
+
+	// The app has been successfully deployed.
+	return nil
 }

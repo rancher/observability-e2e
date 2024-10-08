@@ -3,180 +3,117 @@ package charts
 import (
 	"context"
 	"fmt"
+	"time"
 
 	catalogv1 "github.com/rancher/rancher/pkg/apis/catalog.cattle.io/v1"
-	kubenamespaces "github.com/rancher/rancher/tests/v2/actions/kubeapi/namespaces"
-	"github.com/rancher/rancher/tests/v2/actions/namespaces"
 	"github.com/rancher/shepherd/clients/rancher"
 	"github.com/rancher/shepherd/clients/rancher/catalog"
-	"github.com/rancher/shepherd/extensions/charts"
-	"github.com/rancher/shepherd/extensions/defaults"
 	"github.com/rancher/shepherd/pkg/api/steve/catalog/types"
-	"github.com/rancher/shepherd/pkg/wait"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/apimachinery/pkg/util/wait"
 )
 
 const (
-	// Namespace that rancher alerting drivers chart is installed
-	RancherAlertingNamespace = RancherMonitoringNamespace
-	// Name of the rancher alerting drivers chart
+	// Updated namespace for the alerting chart
+	RancherAlertingNamespace = "cattle-alerting"
+	// Name of the rancher-alerting-drivers chart
 	RancherAlertingName = "rancher-alerting-drivers"
 )
 
-// InstallRancherALertingChart is a helper function that installs the rancher-alerting-drivers chart.
+// InstallRancherAlertingChart installs the rancher-alerting-drivers chart with a timeout.
 func InstallRancherAlertingChart(client *rancher.Client, installOptions *InstallOptions, rancherAlertingOpts *RancherAlertingOpts) error {
+	// Retrieve the server URL setting.
 	serverSetting, err := client.Management.Setting.ByID(serverURLSettingID)
 	if err != nil {
 		return err
 	}
 
+	// Retrieve the default registry setting.
 	registrySetting, err := client.Management.Setting.ByID(defaultRegistrySettingID)
 	if err != nil {
 		return err
 	}
 
-	alertingChartInstallActionPayload := &payloadOpts{
-		InstallOptions:  *installOptions,
-		Name:            RancherAlertingName,
-		Namespace:       RancherAlertingNamespace,
-		Host:            serverSetting.Value,
-		DefaultRegistry: registrySetting.Value,
+	// Prepare the alerting values.
+	alertingValues := map[string]interface{}{
+		"prom2teams": map[string]interface{}{
+			"enabled": rancherAlertingOpts.Teams,
+		},
+		"sachet": map[string]interface{}{
+			"enabled": rancherAlertingOpts.SMS,
+		},
 	}
 
-	chartInstallAction := newAlertingChartInstallAction(alertingChartInstallActionPayload, rancherAlertingOpts)
-	if err != nil {
-		return err
-	}
+	// Create chart install configuration for the main chart.
+	chartInstall := newChartInstall(
+		RancherAlertingName,
+		installOptions.Version,
+		installOptions.Cluster.ID,
+		installOptions.Cluster.Name,
+		serverSetting.Value,
+		rancherChartsName,
+		installOptions.ProjectID,
+		registrySetting.Value,
+		alertingValues,
+	)
 
+	// Combine chart installations.
+	chartInstalls := []types.ChartInstall{*chartInstall}
+	chartInstallAction := newChartInstallAction(RancherAlertingNamespace, installOptions.ProjectID, chartInstalls)
+
+	// Get the catalog client for the cluster.
 	catalogClient, err := client.GetClusterCatalogClient(installOptions.Cluster.ID)
 	if err != nil {
 		return err
 	}
 
-	// Cleanup registration
-	client.Session.RegisterCleanupFunc(func() error {
-		// UninstallAction for when uninstalling the rancher-alerting-drivers chart
-		defaultChartUninstallAction := newChartUninstallAction()
+	// Install the chart using the catalog client.
+	if err = catalogClient.InstallChart(chartInstallAction, catalog.RancherChartRepo); err != nil {
+		return err
+	}
 
-		err = catalogClient.UninstallChart(RancherAlertingName, RancherAlertingNamespace, defaultChartUninstallAction)
+	// Define the polling interval and timeout duration.
+	interval := 10 * time.Second
+	timeout := 10 * time.Minute
+
+	// Start polling to check the deployment status using wait.Poll.
+	err = wait.Poll(interval, timeout, func() (bool, error) {
+		// Attempt to get the app from the catalog.
+		app, err := catalogClient.Apps(RancherAlertingNamespace).Get(context.TODO(), RancherAlertingName, metav1.GetOptions{})
 		if err != nil {
-			return err
-		}
-
-		watchAppInterface, err := catalogClient.Apps(RancherAlertingNamespace).Watch(context.TODO(), metav1.ListOptions{
-			FieldSelector:  "metadata.name=" + RancherAlertingName,
-			TimeoutSeconds: &defaults.WatchTimeoutSeconds,
-		})
-		if err != nil {
-			return err
-		}
-
-		err = wait.WatchWait(watchAppInterface, func(event watch.Event) (ready bool, err error) {
-			if event.Type == watch.Error {
-				return false, fmt.Errorf("there was an error uninstalling rancher alert drivers chart")
-			} else if event.Type == watch.Deleted {
-				return true, nil
-			}
-			return false, nil
-		})
-		if err != nil {
-			return err
-		}
-
-		monitoringChart, err := charts.GetChartStatus(client, installOptions.Cluster.ID, RancherMonitoringNamespace, RancherMonitoringName)
-		if err != nil {
-			return err
-		}
-
-		// prevent hitting delete twice for the monitoring namespace while CRDs are being deleted
-		if !monitoringChart.IsAlreadyInstalled {
-			steveclient, err := client.Steve.ProxyDownstream(installOptions.Cluster.ID)
-			if err != nil {
-				return err
-			}
-
-			namespaceClient := steveclient.SteveType(namespaces.NamespaceSteveType)
-
-			namespace, err := namespaceClient.ByID(RancherAlertingNamespace)
-			if err != nil {
-				return err
-			}
-
-			err = namespaceClient.Delete(namespace)
-			if err != nil {
-				return err
-			}
-
-			adminClient, err := rancher.NewClient(client.RancherConfig.AdminToken, client.Session)
-			if err != nil {
-				return err
-			}
-			adminDynamicClient, err := adminClient.GetDownStreamClusterClient(installOptions.Cluster.ID)
-			if err != nil {
-				return err
-			}
-			adminNamespaceResource := adminDynamicClient.Resource(kubenamespaces.NamespaceGroupVersionResource).Namespace("")
-
-			watchNamespaceInterface, err := adminNamespaceResource.Watch(context.TODO(), metav1.ListOptions{
-				FieldSelector:  "metadata.name=" + RancherAlertingNamespace,
-				TimeoutSeconds: &defaults.WatchTimeoutSeconds,
-			})
-			if err != nil {
-				return err
-			}
-
-			err = wait.WatchWait(watchNamespaceInterface, func(event watch.Event) (ready bool, err error) {
-				if event.Type == watch.Deleted {
-					return true, nil
-				}
+			if apierrors.IsNotFound(err) {
+				// The app is not yet created; continue waiting.
 				return false, nil
-			})
-			if err != nil {
-				return err
 			}
+			// An error occurred; stop waiting and return the error.
+			return false, err
 		}
 
-		return nil
-	})
-
-	err = catalogClient.InstallChart(chartInstallAction, catalog.RancherChartRepo)
-	if err != nil {
-		return err
-	}
-
-	// wait for chart to be full deployed
-	watchAppInterface, err := catalogClient.Apps(RancherAlertingNamespace).Watch(context.TODO(), metav1.ListOptions{
-		FieldSelector:  "metadata.name=" + RancherAlertingName,
-		TimeoutSeconds: &defaults.WatchTimeoutSeconds,
-	})
-	if err != nil {
-		return err
-	}
-
-	return wait.WatchWait(watchAppInterface, func(event watch.Event) (ready bool, err error) {
-		app := event.Object.(*catalogv1.App)
-
+		// Check the deployment status of the app.
 		state := app.Status.Summary.State
-		if state == string(catalogv1.StatusDeployed) {
-			return true, nil
-		}
-		return false, nil
-	})
-}
 
-func newAlertingChartInstallAction(p *payloadOpts, opts *RancherAlertingOpts) *types.ChartInstallAction {
-	alertingValues := map[string]interface{}{
-		"prom2teams": map[string]interface{}{
-			"enabled": opts.Teams,
-		},
-		"sachet": map[string]interface{}{
-			"enabled": opts.SMS,
-		},
+		switch state {
+		case string(catalogv1.StatusDeployed):
+			// The app has been successfully deployed.
+			return true, nil
+		case string(catalogv1.StatusFailed):
+			// The app failed to deploy.
+			return false, fmt.Errorf("failed to install rancher-alerting-drivers chart")
+		default:
+			// The app is still deploying; continue waiting.
+			return false, nil
+		}
+	})
+
+	// Handle the result of the polling.
+	if err != nil {
+		if err == wait.ErrWaitTimeout {
+			return fmt.Errorf("timeout: rancher-alerting-drivers chart was not installed within 10 minutes")
+		}
+		return err
 	}
 
-	chartInstall := newChartInstall(p.Name, p.Version, p.Cluster.ID, p.Cluster.Name, p.Host, rancherChartsName, p.ProjectID, p.DefaultRegistry, alertingValues)
-	chartInstalls := []types.ChartInstall{*chartInstall}
-
-	return newChartInstallAction(p.Namespace, p.ProjectID, chartInstalls)
+	// The app has been successfully deployed.
+	return nil
 }
