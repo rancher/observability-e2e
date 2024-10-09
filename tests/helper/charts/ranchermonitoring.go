@@ -5,16 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"time"
 
 	catalogv1 "github.com/rancher/rancher/pkg/apis/catalog.cattle.io/v1"
 	"github.com/rancher/shepherd/clients/rancher"
 	"github.com/rancher/shepherd/clients/rancher/catalog"
 	"github.com/rancher/shepherd/extensions/clusters"
 	"github.com/rancher/shepherd/pkg/api/steve/catalog/types"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"github.com/rancher/shepherd/pkg/wait"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/watch"
 )
 
 const (
@@ -110,21 +109,21 @@ func InstallRancherMonitoringChart(client *rancher.Client, installOptions *Insta
 		return err
 	}
 
-	// Define the polling interval and timeout duration.
-	interval := 10 * time.Second
-	timeout := 10 * time.Minute
+	// Start watching the App resource.
+	timeoutSeconds := int64(5 * 60) // 5 minutes
+	watchInterface, err := catalogClient.Apps(RancherMonitoringNamespace).Watch(context.TODO(), metav1.ListOptions{
+		FieldSelector:  "metadata.name=" + RancherMonitoringName,
+		TimeoutSeconds: &timeoutSeconds,
+	})
+	if err != nil {
+		return err
+	}
 
-	// Start polling to check the deployment status.
-	err = wait.Poll(interval, timeout, func() (bool, error) {
-		// Attempt to get the app from the catalog.
-		app, err := catalogClient.Apps(RancherMonitoringNamespace).Get(context.TODO(), RancherMonitoringName, metav1.GetOptions{})
-		if err != nil {
-			if apierrors.IsNotFound(err) {
-				// The app is not yet created; continue waiting.
-				return false, nil
-			}
-			// An error occurred; stop waiting and return the error.
-			return false, err
+	// Define the check function for WatchWait.
+	checkFunc := func(event watch.Event) (bool, error) {
+		app, ok := event.Object.(*catalogv1.App)
+		if !ok {
+			return false, fmt.Errorf("unexpected type %T", event.Object)
 		}
 
 		// Check the deployment status of the app.
@@ -141,12 +140,15 @@ func InstallRancherMonitoringChart(client *rancher.Client, installOptions *Insta
 			// The app is still deploying; continue waiting.
 			return false, nil
 		}
-	})
+	}
 
-	// Handle the result of the polling.
+	// Use WatchWait to wait until the app is deployed.
+	err = wait.WatchWait(watchInterface, checkFunc)
+
+	// Handle the result.
 	if err != nil {
-		if wait.Interrupted(err) {
-			return fmt.Errorf("timeout: rancher-monitoring chart was not installed within 10 minutes")
+		if err.Error() == wait.TimeoutError {
+			return fmt.Errorf("timeout: rancher-monitoring chart was not installed within 5 minutes")
 		}
 		return err
 	}

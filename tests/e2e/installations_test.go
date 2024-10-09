@@ -37,12 +37,12 @@ var _ = Describe("Observability Installation Test Suite", func() {
 		Expect(err).NotTo(HaveOccurred())
 	})
 
-	It("Author:dpunia-LEVEL0-Install monitoring chart", func() {
-		By("Checking if the monitoring chart is already installed")
+	It("Install monitoring chart", Label("LEVEL0", "monitoring", "installation"), func() {
+		By("1) Checking if the monitoring chart is already installed")
 		initialMonitoringChart, err := extencharts.GetChartStatus(clientWithSession, project.ClusterID, charts.RancherMonitoringNamespace, charts.RancherMonitoringName)
 		Expect(err).NotTo(HaveOccurred())
 		if initialMonitoringChart.IsAlreadyInstalled {
-			e2e.Logf("Monitoring chart is already installated, Version: %v", initialMonitoringChart)
+			e2e.Logf("Monitoring chart is already installated in project: %v", exampleAppProjectName)
 		}
 
 		if !initialMonitoringChart.IsAlreadyInstalled {
@@ -63,26 +63,29 @@ var _ = Describe("Observability Installation Test Suite", func() {
 				Proxy:             true,
 				Scheduler:         true,
 			}
+			e2e.Logf("Retrieved latest monitoring chart version to install: %v", latestMonitoringVersion)
 
-			By("Installing monitoring chart with the latest version")
+			By("2) Installing monitoring chart with the latest version")
 			err = charts.InstallRancherMonitoringChart(clientWithSession, monitoringInstOpts, monitoringOpts)
-			Expect(err).NotTo(HaveOccurred())
+			if err != nil {
+				e2e.Failf("Failed to install the monitoring chart. Error: %v", err)
+			}
 
-			By("Waiting for monitoring chart deployments to have expected replicas")
+			By("3) Waiting for monitoring chart deployments to have expected replicas")
 			err = extencharts.WatchAndWaitDeployments(clientWithSession, project.ClusterID, charts.RancherMonitoringNamespace, metav1.ListOptions{})
 			Expect(err).NotTo(HaveOccurred())
 
-			By("Waiting for monitoring chart DaemonSets to have expected nodes")
+			By("4) Waiting for monitoring chart DaemonSets to have expected nodes")
 			err = extencharts.WatchAndWaitDaemonSets(clientWithSession, project.ClusterID, charts.RancherMonitoringNamespace, metav1.ListOptions{})
 			Expect(err).NotTo(HaveOccurred())
 
-			By("Waiting for monitoring chart StatefulSets to have expected replicas")
+			By("5) Waiting for monitoring chart StatefulSets to have expected replicas")
 			err = extencharts.WatchAndWaitStatefulSets(clientWithSession, project.ClusterID, charts.RancherMonitoringNamespace, metav1.ListOptions{})
 			Expect(err).NotTo(HaveOccurred())
 		}
 	})
 
-	It("Author:dpunia-LEVEL0-Install Alerting chart", func() {
+	It("Install Alerting chart", Label("LEVEL0", "alerting", "installation"), func() {
 		alertingChart, err := extencharts.GetChartStatus(clientWithSession, project.ClusterID, charts.RancherAlertingNamespace, charts.RancherAlertingName)
 		Expect(err).NotTo(HaveOccurred())
 
@@ -90,6 +93,7 @@ var _ = Describe("Observability Installation Test Suite", func() {
 			// Get latest versions of alerting
 			latestAlertingVersion, err := clientWithSession.Catalog.GetLatestChartVersion(charts.RancherAlertingName, catalog.RancherChartRepo)
 			Expect(err).NotTo(HaveOccurred())
+			e2e.Logf("Retrieved latest alerting chart version to install: %v", latestAlertingVersion)
 
 			alertingChartInstallOption := &charts.InstallOptions{
 				Cluster:   cluster,
@@ -104,7 +108,9 @@ var _ = Describe("Observability Installation Test Suite", func() {
 
 			By("Installing alerting chart with the latest version")
 			err = charts.InstallRancherAlertingChart(clientWithSession, alertingChartInstallOption, alertingFeatureOption)
-			Expect(err).NotTo(HaveOccurred())
+			if err != nil {
+				e2e.Failf("Failed to install the alerting chart. Error: %v", err)
+			}
 
 			By("Waiting for alerting chart deployments to have expected replicas")
 			err = extencharts.WatchAndWaitDeployments(clientWithSession, project.ClusterID, charts.RancherAlertingNamespace, metav1.ListOptions{})
@@ -120,7 +126,7 @@ var _ = Describe("Observability Installation Test Suite", func() {
 		}
 	})
 
-	It("Author:dpunia-LEVEL0-Install Logging chart", func() {
+	It("Install Logging chart", Label("LEVEL0", "logging", "installation"), func() {
 		loggingChart, err := extencharts.GetChartStatus(clientWithSession, project.ClusterID, charts.RancherLoggingNamespace, charts.RancherLoggingName)
 		Expect(err).NotTo(HaveOccurred())
 
@@ -128,6 +134,7 @@ var _ = Describe("Observability Installation Test Suite", func() {
 			// Get latest versions of logging
 			latestLoggingVersion, err := clientWithSession.Catalog.GetLatestChartVersion(charts.RancherLoggingName, catalog.RancherChartRepo)
 			Expect(err).NotTo(HaveOccurred())
+			e2e.Logf("Retrieved latest logging chart version to install: %v", latestLoggingVersion)
 
 			loggingChartInstallOption := &charts.InstallOptions{
 				Cluster:   cluster,
@@ -141,7 +148,9 @@ var _ = Describe("Observability Installation Test Suite", func() {
 
 			By("Installing logging chart with the latest version")
 			err = charts.InstallRancherLoggingChart(clientWithSession, loggingChartInstallOption, loggingChartFeatureOption)
-			Expect(err).NotTo(HaveOccurred())
+			if err != nil {
+				e2e.Failf("Failed to install the logging chart. Error: %v", err)
+			}
 
 			By("Waiting for logging chart deployments to have expected replicas")
 			err = extencharts.WatchAndWaitDeployments(clientWithSession, project.ClusterID, charts.RancherLoggingNamespace, metav1.ListOptions{})
@@ -157,8 +166,3 @@ var _ = Describe("Observability Installation Test Suite", func() {
 		}
 	})
 })
-
-// func TestGinkgoSuite(t *testing.T) {
-// 	RegisterFailHandler(Fail)
-// 	RunSpecs(t, "Installation Test Suite")
-// }
