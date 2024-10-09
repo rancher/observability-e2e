@@ -15,6 +15,7 @@ limitations under the License.
 package e2e_test
 
 import (
+	"os"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -23,6 +24,7 @@ import (
 	management "github.com/rancher/shepherd/clients/rancher/generated/management/v3"
 	clusters "github.com/rancher/shepherd/extensions/clusters"
 	session "github.com/rancher/shepherd/pkg/session"
+	e2e "k8s.io/kubernetes/test/e2e/framework"
 )
 
 var (
@@ -39,9 +41,20 @@ func FailWithReport(message string, callerSkip ...int) {
 	Fail(message, callerSkip[0]+1)
 }
 
+// Run individual or group of tests with labels using CLI
+// TEST_LABEL_FILTER=monitoring  /usr/local/go/bin/go test -timeout 60m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v
 func TestE2E(t *testing.T) {
 	RegisterFailHandler(FailWithReport)
-	RunSpecs(t, "Observability End-To-End Test Suite")
+	suiteConfig, reporterConfig := GinkgoConfiguration()
+
+	// Set the label filter to "LEVEL0" (or any other test with custom tag)
+	if envLabelFilter := os.Getenv("TEST_LABEL_FILTER"); envLabelFilter != "" {
+		suiteConfig.LabelFilter = envLabelFilter
+	} else {
+		suiteConfig.LabelFilter = "LEVEL0"
+	}
+	e2e.Logf("Executing tests with label '%v'", suiteConfig.LabelFilter)
+	RunSpecs(t, "Observability End-To-End Test Suite", suiteConfig, reporterConfig)
 }
 
 // This setup will run once for the entire test suite
