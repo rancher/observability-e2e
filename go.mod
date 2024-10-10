@@ -17,6 +17,8 @@ require (
 require (
 	github.com/onsi/ginkgo/v2 v2.20.2
 	github.com/onsi/gomega v1.34.2
+	github.com/rancher/rancher/pkg/apis v0.0.0-20240719121207-baeda6b89fe3
+	k8s.io/kubernetes v1.30.1
 )
 
 require (
@@ -73,7 +75,6 @@ require (
 	github.com/rancher/fleet/pkg/apis v0.10.0 // indirect
 	github.com/rancher/gke-operator v1.9.2-rc.2 // indirect
 	github.com/rancher/lasso v0.0.0-20240705194423-b2a060d103c1 // indirect
-	github.com/rancher/rancher/pkg/apis v0.0.0-20240719121207-baeda6b89fe3 // indirect
 	github.com/rancher/rke v1.6.2-rc.2 // indirect
 	github.com/rancher/system-upgrade-controller/pkg/apis v0.0.0-20240301001845-4eacc2dabbde // indirect
 	github.com/rancher/wrangler v1.1.2 // indirect
@@ -105,7 +106,7 @@ require (
 	k8s.io/klog/v2 v2.120.1 // indirect
 	k8s.io/kube-aggregator v0.30.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20240411171206-dc4e619f62f3 // indirect
-	k8s.io/kubernetes v1.30.1 // indirect
+	k8s.io/pod-security-admission v0.30.1 // indirect
 	sigs.k8s.io/cli-utils v0.35.0 // indirect
 	sigs.k8s.io/cluster-api v1.7.3 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
