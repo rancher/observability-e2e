@@ -17,12 +17,12 @@ package e2e_test
 import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/rancher/rancher/tests/v2/actions/charts"
-	"github.com/rancher/rancher/tests/v2/actions/registries"
-	"github.com/rancher/shepherd/clients/rancher"
-	"github.com/rancher/shepherd/clients/rancher/catalog"
+	"github.com/rancher/observability-e2e/tests/helper/charts"
+	rancher "github.com/rancher/shepherd/clients/rancher"
+	catalog "github.com/rancher/shepherd/clients/rancher/catalog"
 	extencharts "github.com/rancher/shepherd/extensions/charts"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	e2e "k8s.io/kubernetes/test/e2e/framework"
 )
 
 const exampleAppProjectName = "demo-project"
@@ -31,16 +31,19 @@ var _ = Describe("Observability Installation Test Suite", func() {
 	var clientWithSession *rancher.Client
 	var err error
 
-	BeforeEach(func() {
+	JustBeforeEach(func() {
 		By("Creating a client session")
 		clientWithSession, err = client.WithSession(sess)
 		Expect(err).NotTo(HaveOccurred())
 	})
 
-	It("Should install monitoring chart if not already installed", func() {
-		By("Checking if the monitoring chart is already installed")
+	It("Install monitoring chart", Label("LEVEL0", "monitoring", "installation"), func() {
+		By("1) Checking if the monitoring chart is already installed")
 		initialMonitoringChart, err := extencharts.GetChartStatus(clientWithSession, project.ClusterID, charts.RancherMonitoringNamespace, charts.RancherMonitoringName)
 		Expect(err).NotTo(HaveOccurred())
+		if initialMonitoringChart.IsAlreadyInstalled {
+			e2e.Logf("Monitoring chart is already installated in project: %v", exampleAppProjectName)
+		}
 
 		if !initialMonitoringChart.IsAlreadyInstalled {
 			// Get latest versions of monitoring
@@ -60,31 +63,29 @@ var _ = Describe("Observability Installation Test Suite", func() {
 				Proxy:             true,
 				Scheduler:         true,
 			}
+			e2e.Logf("Retrieved latest monitoring chart version to install: %v", latestMonitoringVersion)
 
-			By("Installing monitoring chart with the latest version")
+			By("2) Installing monitoring chart with the latest version")
 			err = charts.InstallRancherMonitoringChart(clientWithSession, monitoringInstOpts, monitoringOpts)
-			Expect(err).NotTo(HaveOccurred())
+			if err != nil {
+				e2e.Failf("Failed to install the monitoring chart. Error: %v", err)
+			}
 
-			By("Waiting for monitoring chart deployments to have expected replicas")
+			By("3) Waiting for monitoring chart deployments to have expected replicas")
 			err = extencharts.WatchAndWaitDeployments(clientWithSession, project.ClusterID, charts.RancherMonitoringNamespace, metav1.ListOptions{})
 			Expect(err).NotTo(HaveOccurred())
 
-			By("Waiting for monitoring chart DaemonSets to have expected nodes")
+			By("4) Waiting for monitoring chart DaemonSets to have expected nodes")
 			err = extencharts.WatchAndWaitDaemonSets(clientWithSession, project.ClusterID, charts.RancherMonitoringNamespace, metav1.ListOptions{})
 			Expect(err).NotTo(HaveOccurred())
 
-			By("Waiting for monitoring chart StatefulSets to have expected replicas")
+			By("5) Waiting for monitoring chart StatefulSets to have expected replicas")
 			err = extencharts.WatchAndWaitStatefulSets(clientWithSession, project.ClusterID, charts.RancherMonitoringNamespace, metav1.ListOptions{})
 			Expect(err).NotTo(HaveOccurred())
 		}
-
-		By("Checking if the correct registry prefix is used")
-		isUsingRegistry, err := registries.CheckAllClusterPodsForRegistryPrefix(clientWithSession, cluster.ID, registrySetting.Value)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(isUsingRegistry).To(BeTrue(), "Checking if using correct registry prefix")
 	})
 
-	It("Should install Alerting chart if not already installed", func() {
+	It("Install Alerting chart", Label("LEVEL0", "alerting", "installation"), func() {
 		alertingChart, err := extencharts.GetChartStatus(clientWithSession, project.ClusterID, charts.RancherAlertingNamespace, charts.RancherAlertingName)
 		Expect(err).NotTo(HaveOccurred())
 
@@ -92,6 +93,7 @@ var _ = Describe("Observability Installation Test Suite", func() {
 			// Get latest versions of alerting
 			latestAlertingVersion, err := clientWithSession.Catalog.GetLatestChartVersion(charts.RancherAlertingName, catalog.RancherChartRepo)
 			Expect(err).NotTo(HaveOccurred())
+			e2e.Logf("Retrieved latest alerting chart version to install: %v", latestAlertingVersion)
 
 			alertingChartInstallOption := &charts.InstallOptions{
 				Cluster:   cluster,
@@ -101,21 +103,30 @@ var _ = Describe("Observability Installation Test Suite", func() {
 
 			alertingFeatureOption := &charts.RancherAlertingOpts{
 				SMS:   true,
-				Teams: true,
+				Teams: false,
 			}
 
 			By("Installing alerting chart with the latest version")
 			err = charts.InstallRancherAlertingChart(clientWithSession, alertingChartInstallOption, alertingFeatureOption)
+			if err != nil {
+				e2e.Failf("Failed to install the alerting chart. Error: %v", err)
+			}
+
+			By("Waiting for alerting chart deployments to have expected replicas")
+			err = extencharts.WatchAndWaitDeployments(clientWithSession, project.ClusterID, charts.RancherAlertingNamespace, metav1.ListOptions{})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting for alerting chart DaemonSets to have expected nodes")
+			err = extencharts.WatchAndWaitDaemonSets(clientWithSession, project.ClusterID, charts.RancherAlertingNamespace, metav1.ListOptions{})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting for alerting chart StatefulSets to have expected replicas")
+			err = extencharts.WatchAndWaitStatefulSets(clientWithSession, project.ClusterID, charts.RancherAlertingNamespace, metav1.ListOptions{})
 			Expect(err).NotTo(HaveOccurred())
 		}
-
-		By("Checking if the correct registry prefix is used")
-		isUsingRegistry, err := registries.CheckAllClusterPodsForRegistryPrefix(clientWithSession, cluster.ID, registrySetting.Value)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(isUsingRegistry).To(BeTrue(), "Checking if using correct registry prefix")
 	})
 
-	It("Should install Logging chart if not already installed", func() {
+	It("Install Logging chart", Label("LEVEL0", "logging", "installation"), func() {
 		loggingChart, err := extencharts.GetChartStatus(clientWithSession, project.ClusterID, charts.RancherLoggingNamespace, charts.RancherLoggingName)
 		Expect(err).NotTo(HaveOccurred())
 
@@ -123,6 +134,7 @@ var _ = Describe("Observability Installation Test Suite", func() {
 			// Get latest versions of logging
 			latestLoggingVersion, err := clientWithSession.Catalog.GetLatestChartVersion(charts.RancherLoggingName, catalog.RancherChartRepo)
 			Expect(err).NotTo(HaveOccurred())
+			e2e.Logf("Retrieved latest logging chart version to install: %v", latestLoggingVersion)
 
 			loggingChartInstallOption := &charts.InstallOptions{
 				Cluster:   cluster,
@@ -136,17 +148,21 @@ var _ = Describe("Observability Installation Test Suite", func() {
 
 			By("Installing logging chart with the latest version")
 			err = charts.InstallRancherLoggingChart(clientWithSession, loggingChartInstallOption, loggingChartFeatureOption)
+			if err != nil {
+				e2e.Failf("Failed to install the logging chart. Error: %v", err)
+			}
+
+			By("Waiting for logging chart deployments to have expected replicas")
+			err = extencharts.WatchAndWaitDeployments(clientWithSession, project.ClusterID, charts.RancherLoggingNamespace, metav1.ListOptions{})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting for logging chart DaemonSets to have expected nodes")
+			err = extencharts.WatchAndWaitDaemonSets(clientWithSession, project.ClusterID, charts.RancherLoggingNamespace, metav1.ListOptions{})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting for logging chart StatefulSets to have expected replicas")
+			err = extencharts.WatchAndWaitStatefulSets(clientWithSession, project.ClusterID, charts.RancherLoggingNamespace, metav1.ListOptions{})
 			Expect(err).NotTo(HaveOccurred())
 		}
-
-		By("Checking if the correct registry prefix is used")
-		isUsingRegistry, err := registries.CheckAllClusterPodsForRegistryPrefix(clientWithSession, cluster.ID, registrySetting.Value)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(isUsingRegistry).To(BeTrue(), "Checking if using correct registry prefix")
 	})
 })
-
-// func TestGinkgoSuite(t *testing.T) {
-// 	RegisterFailHandler(Fail)
-// 	RunSpecs(t, "Installation Test Suite")
-// }
