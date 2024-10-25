@@ -65,7 +65,7 @@ var _ = Describe("Observability Installation Test Suite", func() {
 		if err != nil {
 			e2e.Failf("Failed to get curl response. Error: %v", err)
 		}
-		e2e.Logf("Successfully able to fetch all alerts json . Output : %v", output)
+		e2e.Logf("Successfully able to fetch all alerts json . Output")
 
 		By("3) Unmarshalling json output response")
 		var alerts []Alert
