@@ -46,7 +46,7 @@ var _ = Describe("Observability Installation Test Suite", func() {
 		Expect(err).NotTo(HaveOccurred())
 	})
 
-	It("Test : Verify default Watchdog alert is present", Label("LEVEL1", "alert", "E2E"), func() {
+	It("Test : Verify default Watchdog alert is present", Label("LEVEL1", "monitoring", "E2E"), func() {
 
 		By("1) Create a container to access curl")
 		creatContainer := []string{"kubectl", "run", "test", "--image=ranchertest/mytestcontainer", "-n", "default"}
