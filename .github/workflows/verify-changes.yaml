@@ -1,0 +1,41 @@
+name: Verify Changes
+
+on:
+  push:
+  pull_request:
+    branches:
+      - 'main'
+
+jobs:
+  verify-changes:
+    name: verify-changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: './go.mod'
+
+      - name: Verify Go Modules
+        run: |
+          go mod tidy
+          go mod verify
+          if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+            echo "Go mod isn't up to date. Please run go mod tidy."
+            echo "The following files have changed after 'go mod tidy':"
+            git diff --name-only
+            exit 1
+          fi
+
+      - name: GolangCI-Lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.57
+          only-new-issues: true
+          args: --timeout=5m

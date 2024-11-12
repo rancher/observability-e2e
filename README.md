@@ -1,3 +1,5 @@
+![Lint Code Status](https://github.com/rancher/observability-e2e/actions/workflows/verify-changes.yaml/badge.svg)
+
 # Observability E2E Tests
 
 This repository contains end-to-end (E2E) tests for monitoring installations in Rancher. Follow the steps below to set up and run the tests.
