@@ -1,6 +1,8 @@
-![Lint Code Status](https://github.com/rancher/observability-e2e/actions/workflows/verify-changes.yaml/badge.svg)
-
 # Observability E2E Tests
+
+[![Lint Code Status](https://github.com/rancher/observability-e2e/actions/workflows/verify-changes.yaml/badge.svg?branch=main)](https://github.com/rancher/observability-e2e/actions/workflows/verify-changes.yaml)
+
+[![E2E Docker Run Status](https://github.com/rancher/observability-e2e/actions/workflows/docker_run.yaml/badge.svg?branch=main)](https://github.com/rancher/observability-e2e/actions/workflows/docker_run.yaml)
 
 This repository contains end-to-end (E2E) tests for monitoring installations in Rancher. Follow the steps below to set up and run the tests.
 
