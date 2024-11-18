@@ -30,6 +30,13 @@ func InstallRancherMonitoringChart(client *rancher.Client, installOptions *Insta
 		return err
 	}
 
+	// Ensure the server URL has a scheme
+	serverURL := serverSetting.Value
+	if !strings.HasPrefix(serverURL, "http://") && !strings.HasPrefix(serverURL, "https://") {
+		// Assume HTTPS if no scheme is present
+		serverURL = "https://" + serverURL
+	}
+
 	// Retrieve the default registry setting.
 	registrySetting, err := client.Management.Setting.ByID(defaultRegistrySettingID)
 	if err != nil {
@@ -76,7 +83,7 @@ func InstallRancherMonitoringChart(client *rancher.Client, installOptions *Insta
 		installOptions.Version,
 		installOptions.Cluster.ID,
 		installOptions.Cluster.Name,
-		serverSetting.Value,
+		serverURL,
 		rancherChartsName,
 		installOptions.ProjectID,
 		registrySetting.Value,
@@ -87,7 +94,7 @@ func InstallRancherMonitoringChart(client *rancher.Client, installOptions *Insta
 		installOptions.Version,
 		installOptions.Cluster.ID,
 		installOptions.Cluster.Name,
-		serverSetting.Value,
+		serverURL,
 		rancherChartsName,
 		installOptions.ProjectID,
 		registrySetting.Value,
