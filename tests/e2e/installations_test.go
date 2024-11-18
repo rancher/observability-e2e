@@ -165,4 +165,40 @@ var _ = Describe("Observability Installation Test Suite", func() {
 			Expect(err).NotTo(HaveOccurred())
 		}
 	})
+
+	It("Install Prometheus Federator chart", Label("LEVEL0", "promfed", "installation"), func() {
+
+		By("1) verify if prometheus federator chart is already installed")
+		prometheusFederatorChart, err := extencharts.GetChartStatus(clientWithSession, project.ClusterID, charts.PrometheusFederatorNamespace, charts.PrometheusFederatorName)
+		Expect(err).NotTo(HaveOccurred())
+
+		if !prometheusFederatorChart.IsAlreadyInstalled {
+			// Get latest versions of porm-fed chart
+			By("2) Fetch latest version of prometheus federator chart")
+			latestPrometheusFederatorVersion, err := clientWithSession.Catalog.GetLatestChartVersion(charts.PrometheusFederatorName, catalog.RancherChartRepo)
+			Expect(err).NotTo(HaveOccurred())
+			e2e.Logf("Retrieved latest promethues-federator chart version to install: %v", latestPrometheusFederatorVersion)
+
+			prometheusFederatorChartInstallOption := &charts.InstallOptions{
+				Cluster:   cluster,
+				Version:   latestPrometheusFederatorVersion,
+				ProjectID: project.ID,
+			}
+
+			prometheusFeatureOption := &charts.PrometheusFederatorOpts{
+				EnablePodSecurity: false,
+			}
+
+			By("3) Installing prometheus federator chart with the latest version")
+			err = charts.InstallPrometheusFederatorChart(clientWithSession, prometheusFederatorChartInstallOption, prometheusFeatureOption)
+			if err != nil {
+				e2e.Failf("Failed to install the prometheus chart. Error: %v", err)
+			} else {
+				e2e.Logf("Result | Prometheus Federator chart installed successfully")
+			}
+		} else {
+			e2e.Logf("Result | Prometheus Federator chart is already installed in project: %v", prometheusFederatorChart)
+		}
+	})
+
 })

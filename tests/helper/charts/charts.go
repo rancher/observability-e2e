@@ -35,6 +35,10 @@ type RancherMonitoringOpts struct {
 	Scheduler         bool `json:"scheduler" yaml:"scheduler"`
 }
 
+type PrometheusFederatorOpts struct {
+	EnablePodSecurity bool
+}
+
 // RancherLoggingOpts is a struct of the required options to install Rancher Logging with desired chart values.
 type RancherLoggingOpts struct {
 	AdditionalLoggingSources bool
