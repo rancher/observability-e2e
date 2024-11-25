@@ -64,7 +64,7 @@ var _ = Describe("Observability Installation Test Suite", func() {
 		if err != nil {
 			e2e.Failf("Failed to create container. Error: %v", err)
 		}
-		e2e.Logf("Verified contianer is created %v", testContainer)
+		e2e.Logf("Verified container is created %v", testContainer)
 
 		time.Sleep(30 * time.Second)
 
@@ -153,6 +153,113 @@ var _ = Describe("Observability Installation Test Suite", func() {
 		_, err = steveclient.SteveType(prometheusRulesSteveType).Create(prometheusRule)
 		if err != nil {
 			e2e.Failf("Error on creation of Prometheus Rule: %v", err)
+		}
+
+	})
+
+	It("Test : Verify status of rancher-monitoring pods using kubectl", Label("LEVEL1", "monitoring", "E2E", "sets"), func() {
+
+		By("0) Fetch all the pods belongs to rancher-monitoring")
+		fetchPods := []string{"kubectl", "get", "pods", "-n", "cattle-monitoring-system", "--no-headers"}
+		rancherMonitoringPods, err := kubectl.Command(clientWithSession, nil, "local", fetchPods, "")
+		if err != nil {
+			e2e.Failf("Failed to get pods . Error: %v", err)
+		}
+
+		By("1) Read all the pods and verify the status of rancher-monitoring-Pods")
+		pods := strings.Split(rancherMonitoringPods, "\n")
+		for _, pod := range pods {
+			if pod == "" {
+				continue
+			}
+
+			fields := strings.Fields(pod) // Split the line into pod name and its current status
+			if len(fields) < 3 {
+				e2e.Failf("Unexpected output format for pod: %s", pod)
+			}
+
+			podName := fields[0]
+			podStatus := fields[2]
+
+			if (podStatus != "Running") && (!strings.HasPrefix(podName, "rancher-monitoring")) { // Check if pod status is not 'Running'
+				e2e.Failf("Pod %s is not in 'Running' state, current state: %s", podName, podStatus)
+			}
+		}
+
+	})
+
+	It("Test : Verify status of rancher-monitoring Deployments using kubectl", Label("LEVEL1", "monitoring", "E2E", "sets"), func() {
+
+		By("0) Fetch all the deployments belonging to rancher-monitoring")
+		fetchDeployments := []string{"kubectl", "get", "deployments", "-n", "cattle-monitoring-system", "--no-headers"}
+		rancherMonitoringDeployments, err := kubectl.Command(clientWithSession, nil, "local", fetchDeployments, "")
+		if err != nil {
+			e2e.Failf("Failed to get deployments. Error: %v", err)
+		}
+
+		By("1) Read all the deployments and verify the status of rancher-monitoring deployments")
+		deployments := strings.Split(rancherMonitoringDeployments, "\n")
+		for _, deployment := range deployments {
+			if deployment == "" {
+				continue
+			}
+
+			fields := strings.Fields(deployment) // Split the line into deployment name and its current status
+			if len(fields) < 4 {
+				e2e.Failf("Unexpected output format for deployment: %s", deployment)
+			}
+
+			deploymentName := fields[0]
+			readyReplicas := fields[1]
+			availableReplicas := fields[3]
+
+			readyCount := strings.Split(readyReplicas, "/")[0]
+			desiredCount := strings.Split(readyReplicas, "/")[1]
+
+			if availableReplicas != desiredCount && !strings.HasPrefix(deploymentName, "rancher-monitoring") {
+				e2e.Failf("Deployment %s is not fully available. Desired: %s, Available: %s", deploymentName, desiredCount, availableReplicas)
+			}
+
+			if readyCount != desiredCount && !strings.HasPrefix(deploymentName, "rancher-monitoring") {
+				e2e.Failf("Deployment %s is not fully ready. Desired: %s, Ready: %s", deploymentName, desiredCount, readyCount)
+			}
+		}
+
+	})
+
+	It("Test : Verify status of rancher-monitoring DaemonSets using kubectl", Label("LEVEL1", "monitoring", "E2E", "sets"), func() {
+
+		By("0) Fetch all the daemon sets belongs to rancher-monitoring")
+		fetchPods := []string{"kubectl", "get", "daemonsets", "-n", "cattle-monitoring-system", "--no-headers"}
+		rancherMonitoringDaemonSets, err := kubectl.Command(clientWithSession, nil, "local", fetchPods, "")
+		if err != nil {
+			e2e.Failf("Failed to get daemonsets . Error: %v", err)
+		}
+
+		By("1) Read all the daemonSet and verify the status of rancher-monitoring-daemonSets")
+		daemonSets := strings.Split(rancherMonitoringDaemonSets, "\n")
+		for _, daemonSet := range daemonSets {
+			if daemonSet == "" {
+				continue
+			}
+
+			fields := strings.Fields(daemonSet) // Split the line into pod name and its current status
+			if len(fields) < 6 {
+				e2e.Failf("Unexpected output format for daemonSet: %s", daemonSet)
+			}
+
+			daemonSetName := fields[0]
+			desiredPods := fields[1]
+			readyPods := fields[3]
+			availablePods := fields[5]
+
+			if desiredPods != availablePods {
+				e2e.Failf("DaemonSet %s is not fully available. Desired: %s, Available: %s", daemonSetName, desiredPods, availablePods)
+			}
+
+			if readyPods != desiredPods {
+				e2e.Failf("DaemonSet %s is not fully ready. Desired: %s, Ready: %s", daemonSetName, desiredPods, readyPods)
+			}
 		}
 
 	})
