@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"encoding/json"
+	"regexp"
 	"strings"
 	"time"
 
@@ -60,11 +61,10 @@ var _ = Describe("Observability Installation Test Suite", func() {
 
 		By("1) Create a container to access curl")
 		creatContainer := []string{"kubectl", "run", "test", "--image=ranchertest/mytestcontainer", "-n", "default"}
-		testContainer, err := kubectl.Command(clientWithSession, nil, "local", creatContainer, "")
+		_, err := kubectl.Command(clientWithSession, nil, "local", creatContainer, "")
 		if err != nil {
 			e2e.Failf("Failed to create container. Error: %v", err)
 		}
-		e2e.Logf("Verified container is created %v", testContainer)
 
 		time.Sleep(30 * time.Second)
 
@@ -157,7 +157,7 @@ var _ = Describe("Observability Installation Test Suite", func() {
 
 	})
 
-	It("Test : Verify status of rancher-monitoring pods using kubectl", Label("LEVEL1", "monitoring", "E2E", "sets"), func() {
+	It("Test : Verify status of rancher-monitoring pods using kubectl", Label("LEVEL1", "monitoring", "E2E"), func() {
 
 		By("0) Fetch all the pods belongs to rancher-monitoring")
 		fetchPods := []string{"kubectl", "get", "pods", "-n", "cattle-monitoring-system", "--no-headers"}
@@ -188,7 +188,7 @@ var _ = Describe("Observability Installation Test Suite", func() {
 
 	})
 
-	It("Test : Verify status of rancher-monitoring Deployments using kubectl", Label("LEVEL1", "monitoring", "E2E", "sets"), func() {
+	It("Test : Verify status of rancher-monitoring Deployments using kubectl", Label("LEVEL1", "monitoring", "E2E"), func() {
 
 		By("0) Fetch all the deployments belonging to rancher-monitoring")
 		fetchDeployments := []string{"kubectl", "get", "deployments", "-n", "cattle-monitoring-system", "--no-headers"}
@@ -227,7 +227,7 @@ var _ = Describe("Observability Installation Test Suite", func() {
 
 	})
 
-	It("Test : Verify status of rancher-monitoring DaemonSets using kubectl", Label("LEVEL1", "monitoring", "E2E", "sets"), func() {
+	It("Test : Verify status of rancher-monitoring DaemonSets using kubectl", Label("LEVEL1", "monitoring", "E2E"), func() {
 
 		By("0) Fetch all the daemon sets belongs to rancher-monitoring")
 		fetchPods := []string{"kubectl", "get", "daemonsets", "-n", "cattle-monitoring-system", "--no-headers"}
@@ -261,6 +261,63 @@ var _ = Describe("Observability Installation Test Suite", func() {
 				e2e.Failf("DaemonSet %s is not fully ready. Desired: %s, Ready: %s", daemonSetName, desiredPods, readyPods)
 			}
 		}
+
+	})
+
+	It("Test: Verify newly created Prometheus rule alert is present", Label("LEVEL1", "monitoring", "E2E"), func() {
+
+		By("1) Creating a container for curl access")
+		createContainerCommand := []string{"kubectl", "run", "curl-container", "--image=ranchertest/mytestcontainer", "-n", "default"}
+		_, err := kubectl.Command(clientWithSession, nil, "local", createContainerCommand, "")
+		if err != nil {
+			e2e.Failf("Failed to create container. Error: %v", err)
+		}
+
+		// Wait for the container to be ready
+		time.Sleep(30 * time.Second)
+
+		By("2) Fetching alerts using curl request")
+		curlCommand := []string{"kubectl", "exec", "curl-container", "-n", "default", "--", "curl", "-s", "http://rancher-monitoring-alertmanager.cattle-monitoring-system:9093/api/v2/alerts"}
+		curlResponse, err := kubectl.Command(clientWithSession, nil, "local", curlCommand, "")
+		curlResponse = strings.TrimSpace(curlResponse)
+		if err != nil {
+			e2e.Failf("Failed to get curl response. Error: %v", err)
+		}
+
+		By("3) Unmarshalling JSON response")
+		var alerts []Alert
+		if err := json.Unmarshal([]byte(curlResponse), &alerts); err != nil {
+			e2e.Failf("Failed to unmarshal JSON response. Error: %v", err)
+		}
+
+		alertNamePattern := regexp.MustCompile(`alert-`)
+
+		By("4) Searching for the newly created Prometheus rule alert")
+		var prometheusRuleAlert *Alert
+		for _, alert := range alerts {
+			if alertNamePattern.MatchString(alert.Labels["alertname"]) {
+				prometheusRuleAlert = &alert
+				break
+			}
+		}
+
+		By("5) Verifying if the Prometheus rule alert was found")
+		if prometheusRuleAlert == nil {
+			e2e.Failf("Expected Prometheus rule alert not found in the response")
+		} else {
+			e2e.Logf("Found Prometheus rule alert: %+v\n", prometheusRuleAlert)
+		}
+
+		defer func() {
+			By("6) Deleting the test container")
+			deleteContainerCommand := []string{"kubectl", "delete", "pod", "curl-container", "-n", "default"}
+			deleteResponse, err := kubectl.Command(clientWithSession, nil, "local", deleteContainerCommand, "")
+			if err != nil {
+				e2e.Logf("Failed to delete container. Error: %v", err)
+			} else {
+				e2e.Logf("Verified container is deleted: %v", deleteResponse)
+			}
+		}()
 
 	})
 
