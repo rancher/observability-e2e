@@ -6,7 +6,7 @@ toolchain go1.22.7
 
 require (
 	github.com/pkg/errors v0.9.1 // indirect
-	github.com/rancher/norman v0.0.0-20240708202514-a0127673d1b9 // indirect
+	github.com/rancher/norman v0.0.0-20240708202514-a0127673d1b9
 	github.com/rancher/shepherd v0.0.0-20240913161053-43e119d13724 // rancher/shepherd release/v2.9-HEAD commit
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	k8s.io/apimachinery v0.30.2

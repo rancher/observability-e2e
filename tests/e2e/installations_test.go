@@ -25,7 +25,7 @@ import (
 	e2e "k8s.io/kubernetes/test/e2e/framework"
 )
 
-const exampleAppProjectName = "demo-project"
+const exampleAppProjectName = "System"
 
 var _ = Describe("Observability Installation Test Suite", func() {
 	var clientWithSession *rancher.Client

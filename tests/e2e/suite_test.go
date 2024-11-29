@@ -20,6 +20,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/rancher/norman/types"
 	rancher "github.com/rancher/shepherd/clients/rancher"
 	management "github.com/rancher/shepherd/clients/rancher/generated/management/v3"
 	clusters "github.com/rancher/shepherd/extensions/clusters"
@@ -59,6 +60,8 @@ func TestE2E(t *testing.T) {
 
 // This setup will run once for the entire test suite
 var _ = BeforeSuite(func() {
+	project = nil
+
 	testSession := session.NewSession()
 	sess = testSession
 
@@ -77,14 +80,32 @@ var _ = BeforeSuite(func() {
 	registrySetting, err = client.Management.Setting.ByID("system-default-registry")
 	Expect(err).NotTo(HaveOccurred())
 
-	// Create project
-	projectConfig := &management.Project{
-		ClusterID: cluster.ID,
-		Name:      exampleAppProjectName,
-	}
-	project, err = client.Management.Project.Create(projectConfig)
+	projectsList, err := client.Management.Project.List(&types.ListOpts{
+		Filters: map[string]interface{}{
+			"clusterId": cluster.ID,
+		},
+	})
 	Expect(err).NotTo(HaveOccurred())
-	Expect(project.Name).To(Equal(exampleAppProjectName))
+
+	for i := range projectsList.Data {
+		p := &projectsList.Data[i]
+		if p.Name == exampleAppProjectName {
+			project = p
+			break
+		}
+	}
+
+	// Check if project was found
+	if project == nil {
+		projectConfig := &management.Project{
+			ClusterID: cluster.ID,
+			Name:      exampleAppProjectName,
+		}
+
+		project, err = client.Management.Project.Create(projectConfig)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(project.Name).To(Equal(exampleAppProjectName))
+	}
 })
 
 // This teardown will run once after all the tests in the suite are done
