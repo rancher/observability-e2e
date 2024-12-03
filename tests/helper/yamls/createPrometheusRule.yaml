@@ -1,0 +1,22 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  annotations:
+    prometheus-operator-validated: 'true'
+  name: test-prometheus-rule
+  namespace: cattle-monitoring-system
+spec:
+  groups:
+    - name: team-qa
+      rules:
+        - alert: test-qa-2025
+          annotations:
+            message: Alerts
+            summary: Validate Summry
+          expr: vector(1)
+          for: 0s
+          labels:
+            cluster_id: local
+            cluster_name: local
+            namespace: cattle-monitoring-system
+            severity: critical

@@ -8,13 +8,9 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
-	"github.com/rancher/observability-e2e/tests/helper/charts"
+	"github.com/rancher/observability-e2e/tests/helper/utils"
 	rancher "github.com/rancher/shepherd/clients/rancher"
 	"github.com/rancher/shepherd/extensions/kubectl"
-	"github.com/rancher/shepherd/pkg/namegenerator"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	e2e "k8s.io/kubernetes/test/e2e/framework"
 )
 
@@ -43,8 +39,11 @@ type AlertStatus struct {
 	State       string   `json:"state"`
 }
 
-const defaultRandStringLength = 5
-const prometheusRulesSteveType = "monitoring.coreos.com.prometheusrule"
+const (
+	defaultRandStringLength  = 5
+	prometheusRulesSteveType = "monitoring.coreos.com.prometheusrule"
+	prometheusRuleFilePath   = "../helper/yamls/createPrometheusRule.yaml"
+)
 
 var ruleLabel = map[string]string{"team": "qa"}
 
@@ -55,6 +54,27 @@ var _ = Describe("Observability Installation Test Suite", func() {
 		By("Creating a client session")
 		clientWithSession, err = client.WithSession(sess)
 		Expect(err).NotTo(HaveOccurred())
+	})
+
+	It("Test : Verify Creating prometheus rule using kubectl", Label("LEVEL1", "monitoring", "E2E"), func() {
+
+		By("1) Apply yaml to create prometheus rule")
+		prometheusError := utils.DeployPrometheusRule(clientWithSession, prometheusRuleFilePath)
+
+		if prometheusError != nil {
+			e2e.Logf("Failed to deploy Prometheus rule: %v", prometheusError)
+		} else {
+			e2e.Logf("Prometheus Rule deployed successfully!")
+		}
+
+		By("2) Fetch all the prometheus rule")
+		fetchPrometheusRules := []string{"kubectl", "get", "prometheusRule", "test-prometheus-rule", "-n", "cattle-monitoring-system"}
+		verifyPetchPrometheusRules, err := kubectl.Command(clientWithSession, nil, "local", fetchPrometheusRules, "")
+		if err != nil {
+			e2e.Failf("Failed to fetch PrometheusRule 'test-prometheus-rule'. Error: %v", err)
+		}
+		e2e.Logf("Successfully fetched PrometheusRule: %v", verifyPetchPrometheusRules)
+
 	})
 
 	It("Test : Verify default Watchdog alert is present", Label("LEVEL1", "monitoring", "E2E"), func() {
@@ -75,7 +95,6 @@ var _ = Describe("Observability Installation Test Suite", func() {
 		if err != nil {
 			e2e.Failf("Failed to get curl response. Error: %v", err)
 		}
-		e2e.Logf("Successfully able to fetch all alerts json . Output")
 
 		By("3) Unmarshalling json output response")
 		var alerts []Alert
@@ -95,8 +114,6 @@ var _ = Describe("Observability Installation Test Suite", func() {
 		By("5)Assert if the Watchdog alert was found ")
 		if watchdogAlert == nil {
 			e2e.Failf("Expected 'Watchdog' alert not found in response")
-		} else {
-			e2e.Logf("Found 'Watchdog' alert: %+v\n", watchdogAlert)
 		}
 
 		defer func() {
@@ -109,51 +126,6 @@ var _ = Describe("Observability Installation Test Suite", func() {
 				e2e.Logf("Verified container is deleted %v", deleteConfirm)
 			}
 		}()
-
-	})
-
-	It("Test : Verify Creating prometheus rule", Label("LEVEL1", "monitoring", "E2E"), func() {
-
-		ruleName := "webhook-rule-" + namegenerator.RandStringLower(defaultRandStringLength)
-		alertName := "alert-" + namegenerator.RandStringLower(defaultRandStringLength)
-
-		By("1) Client login")
-		_, err := client.ReLogin()
-		if err != nil {
-			e2e.Failf("Failed to relogin. Error: %v", err)
-		}
-		By("2) Get the steveclient for the local cluster ")
-		steveclient, err := client.Steve.ProxyDownstream("local") // Get the steveclient for the local cluster
-		if err != nil {
-			e2e.Failf("Error on steveclient: %v", err)
-		}
-
-		prometheusRule := &monitoringv1.PrometheusRule{ // Create the Prometheus Rule
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      ruleName,
-				Namespace: charts.RancherMonitoringNamespace,
-			},
-			Spec: monitoringv1.PrometheusRuleSpec{
-				Groups: []monitoringv1.RuleGroup{
-					{
-						Name: ruleName,
-						Rules: []monitoringv1.Rule{
-							{
-								Alert:  alertName,
-								Expr:   intstr.IntOrString{Type: intstr.String, StrVal: "vector(1)"},
-								Labels: ruleLabel,
-								For:    "0s",
-							},
-						},
-					},
-				},
-			},
-		}
-		By("3) Create the Prometheus Rule on local cluster ")
-		_, err = steveclient.SteveType(prometheusRulesSteveType).Create(prometheusRule)
-		if err != nil {
-			e2e.Failf("Error on creation of Prometheus Rule: %v", err)
-		}
 
 	})
 
@@ -290,7 +262,7 @@ var _ = Describe("Observability Installation Test Suite", func() {
 			e2e.Failf("Failed to unmarshal JSON response. Error: %v", err)
 		}
 
-		alertNamePattern := regexp.MustCompile(`alert-`)
+		alertNamePattern := regexp.MustCompile(`test-qa`)
 
 		By("4) Searching for the newly created Prometheus rule alert")
 		var prometheusRuleAlert *Alert
