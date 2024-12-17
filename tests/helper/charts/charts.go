@@ -96,6 +96,13 @@ func newChartInstall(name, version, clusterID, clusterName, url, repoName, proje
 		},
 	}
 
+	// Add the prometheus-node-exporter hostRootFsMount configuration
+	chartInstall.Values["prometheus-node-exporter"] = map[string]interface{}{
+		"hostRootFsMount": map[string]interface{}{
+			"enabled": false,
+		},
+	}
+
 	for k, v := range chartValues {
 		chartInstall.Values[k] = v
 	}

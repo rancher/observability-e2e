@@ -15,6 +15,8 @@ limitations under the License.
 package e2e_test
 
 import (
+	"time"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/rancher/observability-e2e/tests/helper/charts"
@@ -38,7 +40,7 @@ var _ = Describe("Observability Installation Test Suite", func() {
 	})
 
 	It("Install monitoring chart", Label("LEVEL0", "monitoring", "installation"), func() {
-		By("1) Checking if the monitoring chart is already installed")
+		By("Checking if the monitoring chart is already installed")
 		initialMonitoringChart, err := extencharts.GetChartStatus(clientWithSession, project.ClusterID, charts.RancherMonitoringNamespace, charts.RancherMonitoringName)
 		Expect(err).NotTo(HaveOccurred())
 		if initialMonitoringChart.IsAlreadyInstalled {
@@ -65,23 +67,53 @@ var _ = Describe("Observability Installation Test Suite", func() {
 			}
 			e2e.Logf("Retrieved latest monitoring chart version to install: %v", latestMonitoringVersion)
 
-			By("2) Installing monitoring chart with the latest version")
+			By("Installing monitoring chart with the latest version")
 			err = charts.InstallRancherMonitoringChart(clientWithSession, monitoringInstOpts, monitoringOpts)
 			if err != nil {
 				e2e.Failf("Failed to install the monitoring chart. Error: %v", err)
 			}
 
-			By("3) Waiting for monitoring chart deployments to have expected replicas")
-			err = extencharts.WatchAndWaitDeployments(clientWithSession, project.ClusterID, charts.RancherMonitoringNamespace, metav1.ListOptions{})
-			Expect(err).NotTo(HaveOccurred())
+			By("Waiting for monitoring chart deployments to have expected replicas")
+			errDeployChan := make(chan error, 1)
+			go func() {
+				err = extencharts.WatchAndWaitDeployments(clientWithSession, project.ClusterID, charts.RancherMonitoringNamespace, metav1.ListOptions{})
+				errDeployChan <- err
+			}()
 
-			By("4) Waiting for monitoring chart DaemonSets to have expected nodes")
-			err = extencharts.WatchAndWaitDaemonSets(clientWithSession, project.ClusterID, charts.RancherMonitoringNamespace, metav1.ListOptions{})
-			Expect(err).NotTo(HaveOccurred())
+			select {
+			case err := <-errDeployChan:
+				Expect(err).NotTo(HaveOccurred())
+			case <-time.After(2 * time.Minute):
+				e2e.Failf("Timeout waiting for WatchAndWaitDeployments to complete")
+			}
 
-			By("5) Waiting for monitoring chart StatefulSets to have expected replicas")
-			err = extencharts.WatchAndWaitStatefulSets(clientWithSession, project.ClusterID, charts.RancherMonitoringNamespace, metav1.ListOptions{})
-			Expect(err).NotTo(HaveOccurred())
+			By("Waiting for monitoring chart DaemonSets to have expected nodes")
+			errDaemonChan := make(chan error, 1)
+			go func() {
+				err = extencharts.WatchAndWaitDaemonSets(clientWithSession, project.ClusterID, charts.RancherMonitoringNamespace, metav1.ListOptions{})
+				errDaemonChan <- err
+			}()
+
+			select {
+			case err := <-errDaemonChan:
+				Expect(err).NotTo(HaveOccurred())
+			case <-time.After(2 * time.Minute):
+				e2e.Failf("Timeout waiting for WatchAndWaitDaemonSets to complete")
+			}
+
+			By("Waiting for monitoring chart StatefulSets to have expected replicas")
+			errStsChan := make(chan error, 1)
+			go func() {
+				err = extencharts.WatchAndWaitStatefulSets(clientWithSession, project.ClusterID, charts.RancherMonitoringNamespace, metav1.ListOptions{})
+				errStsChan <- err
+			}()
+
+			select {
+			case err := <-errStsChan:
+				Expect(err).NotTo(HaveOccurred())
+			case <-time.After(2 * time.Minute):
+				e2e.Failf("Timeout waiting for WatchAndWaitStatefulSets to complete")
+			}
 		}
 	})
 
@@ -113,16 +145,32 @@ var _ = Describe("Observability Installation Test Suite", func() {
 			}
 
 			By("Waiting for alerting chart deployments to have expected replicas")
-			err = extencharts.WatchAndWaitDeployments(clientWithSession, project.ClusterID, charts.RancherAlertingNamespace, metav1.ListOptions{})
-			Expect(err).NotTo(HaveOccurred())
+			errDeployChan := make(chan error, 1)
+			go func() {
+				err = extencharts.WatchAndWaitDeployments(clientWithSession, project.ClusterID, charts.RancherAlertingNamespace, metav1.ListOptions{})
+				errDeployChan <- err
+			}()
 
-			By("Waiting for alerting chart DaemonSets to have expected nodes")
-			err = extencharts.WatchAndWaitDaemonSets(clientWithSession, project.ClusterID, charts.RancherAlertingNamespace, metav1.ListOptions{})
-			Expect(err).NotTo(HaveOccurred())
+			select {
+			case err := <-errDeployChan:
+				Expect(err).NotTo(HaveOccurred())
+			case <-time.After(2 * time.Minute):
+				e2e.Failf("Timeout waiting for WatchAndWaitDeployments to complete")
+			}
 
 			By("Waiting for alerting chart StatefulSets to have expected replicas")
-			err = extencharts.WatchAndWaitStatefulSets(clientWithSession, project.ClusterID, charts.RancherAlertingNamespace, metav1.ListOptions{})
-			Expect(err).NotTo(HaveOccurred())
+			errStsChan := make(chan error, 1)
+			go func() {
+				err = extencharts.WatchAndWaitStatefulSets(clientWithSession, project.ClusterID, charts.RancherAlertingNamespace, metav1.ListOptions{})
+				errStsChan <- err
+			}()
+
+			select {
+			case err := <-errStsChan:
+				Expect(err).NotTo(HaveOccurred())
+			case <-time.After(2 * time.Minute):
+				e2e.Failf("Timeout waiting for WatchAndWaitStatefulSets to complete")
+			}
 		}
 	})
 
@@ -153,16 +201,46 @@ var _ = Describe("Observability Installation Test Suite", func() {
 			}
 
 			By("Waiting for logging chart deployments to have expected replicas")
-			err = extencharts.WatchAndWaitDeployments(clientWithSession, project.ClusterID, charts.RancherLoggingNamespace, metav1.ListOptions{})
-			Expect(err).NotTo(HaveOccurred())
+			errDeployChan := make(chan error, 1)
+			go func() {
+				err = extencharts.WatchAndWaitDeployments(clientWithSession, project.ClusterID, charts.RancherLoggingNamespace, metav1.ListOptions{})
+				errDeployChan <- err
+			}()
+
+			select {
+			case err := <-errDeployChan:
+				Expect(err).NotTo(HaveOccurred())
+			case <-time.After(2 * time.Minute):
+				e2e.Failf("Timeout waiting for WatchAndWaitDeployments to complete")
+			}
 
 			By("Waiting for logging chart DaemonSets to have expected nodes")
-			err = extencharts.WatchAndWaitDaemonSets(clientWithSession, project.ClusterID, charts.RancherLoggingNamespace, metav1.ListOptions{})
-			Expect(err).NotTo(HaveOccurred())
+			errDaemonChan := make(chan error, 1)
+			go func() {
+				err = extencharts.WatchAndWaitDaemonSets(clientWithSession, project.ClusterID, charts.RancherLoggingNamespace, metav1.ListOptions{})
+				errDaemonChan <- err
+			}()
+
+			select {
+			case err := <-errDaemonChan:
+				Expect(err).NotTo(HaveOccurred())
+			case <-time.After(2 * time.Minute):
+				e2e.Failf("Timeout waiting for WatchAndWaitDaemonSets to complete")
+			}
 
 			By("Waiting for logging chart StatefulSets to have expected replicas")
-			err = extencharts.WatchAndWaitStatefulSets(clientWithSession, project.ClusterID, charts.RancherLoggingNamespace, metav1.ListOptions{})
-			Expect(err).NotTo(HaveOccurred())
+			errStsChan := make(chan error, 1)
+			go func() {
+				err = extencharts.WatchAndWaitStatefulSets(clientWithSession, project.ClusterID, charts.RancherLoggingNamespace, metav1.ListOptions{})
+				errStsChan <- err
+			}()
+
+			select {
+			case err := <-errStsChan:
+				Expect(err).NotTo(HaveOccurred())
+			case <-time.After(2 * time.Minute):
+				e2e.Failf("Timeout waiting for WatchAndWaitStatefulSets to complete")
+			}
 		}
 	})
 
