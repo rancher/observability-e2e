@@ -1,0 +1,27 @@
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: amc
+  namespace: cattle-monitoring-system
+  labels:
+    managed-by: rancher
+spec:
+  receivers:
+    - name: prom2sms
+      webhookConfigs:
+        - httpConfig:
+            tlsConfig: {}
+          sendResolved: false
+          url: >-
+            http://rancher-alerting-drivers-sachet.cattle-monitoring-system.svc:9876/alert
+  route:
+    groupBy:
+      - qa
+    groupInterval: 1m
+    groupWait: 30s
+    matchers:
+      - matchType: '='
+        name: team
+        value: qa
+    receiver: prom2sms
+    repeatInterval: 1m
