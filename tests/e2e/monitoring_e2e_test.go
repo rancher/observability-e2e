@@ -45,7 +45,7 @@ const (
 	prometheusRuleFilePath   = "../helper/yamls/createPrometheusRule.yaml"
 )
 
-var ruleLabel = map[string]string{"team": "qa"}
+// var ruleLabel = map[string]string{"team": "qa"}
 
 var _ = Describe("Observability Installation Test Suite", func() {
 	var clientWithSession *rancher.Client //RancherConfig *Config
@@ -56,7 +56,7 @@ var _ = Describe("Observability Installation Test Suite", func() {
 		Expect(err).NotTo(HaveOccurred())
 	})
 
-	It("Test : Verify Creating prometheus rule using kubectl", Label("LEVEL1", "monitoring", "E2E"), func() {
+	It("Test : Verify Creating prometheus rule using kubectl", Label("LEVEL1", "monitoring", "E2E", "PromFed"), func() {
 
 		By("1) Apply yaml to create prometheus rule")
 		prometheusError := utils.DeployPrometheusRule(clientWithSession, prometheusRuleFilePath)
@@ -74,7 +74,6 @@ var _ = Describe("Observability Installation Test Suite", func() {
 			e2e.Failf("Failed to fetch PrometheusRule 'test-prometheus-rule'. Error: %v", err)
 		}
 		e2e.Logf("Successfully fetched PrometheusRule: %v", verifyPetchPrometheusRules)
-
 	})
 
 	It("Test : Verify default Watchdog alert is present", Label("LEVEL1", "monitoring", "E2E"), func() {
@@ -236,7 +235,7 @@ var _ = Describe("Observability Installation Test Suite", func() {
 
 	})
 
-	It("Test: Verify newly created Prometheus rule alert is present", Label("LEVEL1", "monitoring", "E2E"), func() {
+	It("Test: Verify newly created Prometheus rule alert is present", Label("LEVEL1", "monitoring", "E2E", "PromFed"), func() {
 
 		By("1) Creating a container for curl access")
 		createContainerCommand := []string{"kubectl", "run", "curl-container", "--image=ranchertest/mytestcontainer", "-n", "default"}
@@ -246,30 +245,50 @@ var _ = Describe("Observability Installation Test Suite", func() {
 		}
 
 		// Wait for the container to be ready
-		time.Sleep(30 * time.Second)
-
-		By("2) Fetching alerts using curl request")
-		curlCommand := []string{"kubectl", "exec", "curl-container", "-n", "default", "--", "curl", "-s", "http://rancher-monitoring-alertmanager.cattle-monitoring-system:9093/api/v2/alerts"}
-		curlResponse, err := kubectl.Command(clientWithSession, nil, "local", curlCommand, "")
-		curlResponse = strings.TrimSpace(curlResponse)
-		if err != nil {
-			e2e.Failf("Failed to get curl response. Error: %v", err)
-		}
-
-		By("3) Unmarshalling JSON response")
-		var alerts []Alert
-		if err := json.Unmarshal([]byte(curlResponse), &alerts); err != nil {
-			e2e.Failf("Failed to unmarshal JSON response. Error: %v", err)
-		}
-
-		alertNamePattern := regexp.MustCompile(`test-qa`)
-
-		By("4) Searching for the newly created Prometheus rule alert")
 		var prometheusRuleAlert *Alert
-		for _, alert := range alerts {
-			if alertNamePattern.MatchString(alert.Labels["alertname"]) {
-				prometheusRuleAlert = &alert
+		var maxRetries = 4
+		var retryInterval = 20 * time.Second
+		var attempt = 0
+
+		for attempt < maxRetries {
+			time.Sleep(30 * time.Second)
+			By("2) Fetching alerts using curl request")
+			curlCommand := []string{"kubectl", "exec", "curl-container", "-n", "default", "--", "curl", "-s", "http://rancher-monitoring-alertmanager.cattle-monitoring-system:9093/api/v2/alerts"}
+			curlResponse, err := kubectl.Command(clientWithSession, nil, "local", curlCommand, "")
+			curlResponse = strings.TrimSpace(curlResponse)
+			if err != nil {
+				e2e.Failf("Failed to get curl response. Error: %v", err)
+			}
+
+			By("3) Unmarshalling JSON response")
+			var alerts []Alert
+			if err := json.Unmarshal([]byte(curlResponse), &alerts); err != nil {
+				e2e.Failf("Failed to unmarshal JSON response. Error: %v", err)
+			}
+
+			alertNamePattern := regexp.MustCompile("test-qa")
+
+			By("4) Searching for the newly created Prometheus rule alert")
+
+			// Search for the alert in the current iteration
+			for _, alert := range alerts {
+				e2e.Logf("Checking alerts line wise ----> %v", alert)
+				if alertNamePattern.MatchString(alert.Labels["alertname"]) {
+					prometheusRuleAlert = &alert
+					break
+				}
+			}
+
+			if prometheusRuleAlert != nil {
+				e2e.Logf("Prometheus alert %v found on attempt: %v", prometheusRuleAlert, attempt+1)
 				break
+			} else {
+				e2e.Logf("Prometheus alert not found. Retrying... (Attempt %d/%d)\n", attempt+1, maxRetries)
+				attempt++
+
+				if attempt < maxRetries {
+					time.Sleep(retryInterval)
+				}
 			}
 		}
 
