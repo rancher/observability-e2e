@@ -1,0 +1,316 @@
+name: (template) Rancher Observability E2E tests
+
+on:
+  workflow_call:
+    secrets:
+      aws_access_key:
+        description: AWS_ACCESS_KEY_ID required to create AWS Cloud credentials.
+        required: true
+      aws_secret_key:
+        description: AWS_SECRET_ACCESS_KEY required to create AWS Cloud credentials.
+        required: true
+      rancher_password:
+        description: Rancher login password
+        required: true
+      instance_ssh_key:
+        description: SSH private key for EC2 instance access.
+        required: true
+      aws_region:
+        description: AWS region where the EC2 instance will be created.
+        required: true
+      key_name:
+        description: AWS key pair name for the EC2 instance.
+        required: true
+    inputs:
+      rancher_version:
+        description: Rancher Manager version
+        type: string
+        required: true
+      upstream_cluster_version:
+        description: Rancher (RKE2) version
+        default: v1.30.8+rke2r1
+        type: string
+        required: true
+      destroy_runner:
+        description: Destroy runner
+        default: true
+        type: boolean
+      rancher_repo:
+        description: Rancher Manager repository
+        default: https://releases.rancher.com/server-charts/latest
+        type: string
+        required: true
+
+env:
+  image_id: ami-00eb69d236edcfaf8
+  instance_type: t2.2xlarge
+  instance_name: observability-e2e-runner
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+
+    outputs:
+      INSTANCE_ID: ${{ steps.provision_ec2.outputs.INSTANCE_ID }}
+      PUBLIC_IP: ${{ steps.get_ip.outputs.PUBLIC_IP }}
+      SECURITY_GROUP_ID: ${{ steps.create_sg.outputs.SECURITY_GROUP_ID }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.aws_access_key }}
+          aws-secret-access-key: ${{ secrets.aws_secret_key }}
+          aws-region: ${{ secrets.aws_region }}
+
+      - name: Create Security Group
+        id: create_sg
+        run: |
+          SECURITY_GROUP_ID=$(aws ec2 create-security-group \
+            --group-name "observability-e2e-sg" \
+            --description "Security group for Rancher Observability E2E tests" \
+            --vpc-id $(aws ec2 describe-vpcs --query "Vpcs[0].VpcId" --output text) \
+            --query "GroupId" \
+            --output text)
+          echo "SECURITY_GROUP_ID=$SECURITY_GROUP_ID" >> $GITHUB_OUTPUT
+
+          MY_PUBLIC_IP=$(curl -s https://checkip.amazonaws.com)
+          echo "::add-mask::$MY_PUBLIC_IP"
+
+          aws ec2 authorize-security-group-ingress \
+            --group-id $SECURITY_GROUP_ID \
+            --protocol tcp \
+            --port 22 \
+            --cidr ${MY_PUBLIC_IP}/32 > /dev/null 2>&1
+
+      - name: Provision EC2 Instance
+        id: provision_ec2
+        run: |
+          INSTANCE_ID=$(aws ec2 run-instances \
+            --image-id "${{ env.image_id }}" \
+            --instance-type "${{ env.instance_type }}" \
+            --key-name "${{ secrets.key_name }}" \
+            --security-group-ids "${{ steps.create_sg.outputs.SECURITY_GROUP_ID }}" \
+            --block-device-mappings '[
+              {
+                "DeviceName": "/dev/sda1",
+                "Ebs": {
+                  "VolumeSize": 50,
+                  "VolumeType": "gp2",
+                  "DeleteOnTermination": true
+                }
+              }
+            ]' \
+            --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=${{ env.instance_name }} }]" \
+            --query "Instances[0].InstanceId" \
+            --output text)
+          echo "INSTANCE_ID=$INSTANCE_ID" >> $GITHUB_OUTPUT
+
+      - name: Wait for EC2 Instance to be running
+        run: aws ec2 wait instance-running --instance-ids "${{ steps.provision_ec2.outputs.INSTANCE_ID }}"
+
+      - name: Retrieve Public IP
+        id: get_ip
+        run: |
+          PUBLIC_IP=$(aws ec2 describe-instances \
+            --instance-ids "${{ steps.provision_ec2.outputs.INSTANCE_ID }}" \
+            --query "Reservations[0].Instances[0].PublicIpAddress" \
+            --output text)
+          echo "PUBLIC_IP=$PUBLIC_IP" >> $GITHUB_OUTPUT
+
+      - name: Start SSH agent and add private key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.instance_ssh_key }}" | tr -d '\r' > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+
+      - name: Add EC2 host to known hosts
+        run: |
+          for i in {1..5}; do
+            ssh-keyscan -H "${{ steps.get_ip.outputs.PUBLIC_IP }}" >> ~/.ssh/known_hosts && break || {
+              echo "Retrying ssh-keyscan in 10 seconds..."
+              sleep 10
+            }
+          done
+
+      - name: Install RKE2 cluster
+        run: |
+          ssh -o StrictHostKeyChecking=no ubuntu@${{ steps.get_ip.outputs.PUBLIC_IP }} << 'EOF'
+            sudo bash -c "
+              ulimit -n 65536
+              sysctl -w fs.inotify.max_user_watches=1048576
+              sysctl -w fs.inotify.max_user_instances=512
+              curl -sfL https://get.rke2.io | INSTALL_RKE2_VERSION=${{ inputs.upstream_cluster_version }} sh -
+              systemctl enable --now rke2-server.service
+              mkdir -p /root/.kube
+              ln -sf /etc/rancher/rke2/rke2.yaml /root/.kube/config
+              ln -sf /var/lib/rancher/rke2/bin/kubectl /usr/local/bin/
+            "
+          EOF
+
+      - name: Install Rancher
+        run: |
+          echo "Installing Rancher..."
+          ssh -o StrictHostKeyChecking=no ubuntu@${{ steps.get_ip.outputs.PUBLIC_IP }} << 'EOF'
+            sudo bash -c "
+              # Download and install Helm
+              curl -fsSL -o /root/get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+              chmod +x /root/get_helm.sh
+              /root/get_helm.sh
+
+              # Install cert-manager
+              kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.15.3/cert-manager.yaml
+              sleep 180 # Wait for cert-manager components to initialize
+
+              # Add Helm repository for cert-manager
+              helm repo add jetstack https://charts.jetstack.io
+
+              # Add Rancher Helm repository
+              helm repo add rancher '${{ inputs.rancher_repo }}'
+
+              # Install Rancher
+              helm install rancher rancher/rancher --namespace cattle-system \
+                --set hostname=rancher.${{ steps.get_ip.outputs.PUBLIC_IP }}.sslip.io \
+                --set replicas=2 \
+                --set bootstrapPassword='${{ secrets.rancher_password }}' \
+                --set global.cattle.psp.enabled=false \
+                --set rancherImageTag='${{ inputs.rancher_version }}' \
+                --wait \
+                --timeout=10m \
+                --create-namespace \
+                --devel
+              sleep 180 # Wait for Rancher components to fully initialize
+              echo 'Rancher installation complete.'
+            "
+          EOF
+
+  run-e2e:
+    needs: [setup]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: './go.mod'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.aws_access_key }}
+          aws-secret-access-key: ${{ secrets.aws_secret_key }}
+          aws-region: ${{ secrets.aws_region }}
+
+      - name: Allow IP Security Group
+        run: |
+          MY_PUBLIC_IP=$(curl -s https://checkip.amazonaws.com)
+          echo "::add-mask::$MY_PUBLIC_IP"
+          aws ec2 authorize-security-group-ingress \
+            --group-id ${{ needs.setup.outputs.SECURITY_GROUP_ID }} \
+            --protocol tcp \
+            --port 443 \
+            --cidr ${MY_PUBLIC_IP}/32 > /dev/null 2>&1
+
+      - name: Generate Rancher API token
+        id: get_token
+        run: |
+          set -euo pipefail
+
+          echo "::add-mask::${{ secrets.rancher_password }}"
+
+          for i in {1..3}; do
+            LOGIN_RESPONSE=$(curl --silent -X POST -H 'Content-Type: application/json' \
+              -d '{"username":"admin","password":"'${{ secrets.rancher_password }}'"}' \
+              https://rancher.${{ needs.setup.outputs.PUBLIC_IP }}.sslip.io/v3-public/localProviders/local?action=login \
+              --insecure)
+            TOKEN=$(echo $LOGIN_RESPONSE | jq -r .token)
+            if [ -n "$TOKEN" ]; then
+              echo "::add-mask::$TOKEN"
+
+              PERMANENT_TOKEN_RESPONSE=$(curl --silent -X POST -H 'Content-Type: application/json' \
+                -H "Authorization: Bearer $TOKEN" \
+                -d '{"type":"token","description":"e2e-tests"}' \
+                https://rancher.${{ needs.setup.outputs.PUBLIC_IP }}.sslip.io/v3/token \
+                --insecure)
+              PERMANENT_TOKEN=$(echo $PERMANENT_TOKEN_RESPONSE | jq -r .token)
+
+              echo "::add-mask::$PERMANENT_TOKEN"
+              break
+            else
+              echo "Retrying Rancher login in 20 seconds..." >&2
+              sleep 20
+            fi
+          done
+
+          if [ -z "$PERMANENT_TOKEN" ] || [ "$PERMANENT_TOKEN" == "null" ]; then
+            echo "Failed to generate permanent token" >&2
+            exit 1
+          fi
+
+          {
+            echo "rancher:"
+            echo "  host: rancher.${{ needs.setup.outputs.PUBLIC_IP }}.sslip.io"
+            echo "  adminToken: $PERMANENT_TOKEN"
+            echo "  insecure: True"
+            echo "  clusterName: local"
+            echo "  cleanup: true"
+          } > $GITHUB_WORKSPACE/cattle-config.yaml
+
+      - name: Create artifacts directory
+        run: mkdir -p ~/artifacts
+
+      - name: Run Installation Charts Tests
+        id: run_installation_tests
+        run: |
+          CATTLE_TEST_CONFIG=$GITHUB_WORKSPACE/cattle-config.yaml \
+          TEST_LABEL_FILTER=installation \
+          go test -timeout 20m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-installation.txt
+
+      - name: Run E2E Tests
+        id: run_e2e_tests
+        run: |
+          CATTLE_TEST_CONFIG=$GITHUB_WORKSPACE/cattle-config.yaml \
+          TEST_LABEL_FILTER=E2E \
+          go test -timeout 30m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-e2e.txt
+
+      - name: Cleanup temporary files
+        if: ${{ always() }}
+        run: |
+          rm -f $GITHUB_WORKSPACE/cattle-config.yaml
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-artifacts
+          path: ~/artifacts
+
+  delete-resources:
+    if: ${{ always() && inputs.destroy_runner == true }}
+    needs: [setup, run-e2e]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.aws_access_key }}
+          aws-secret-access-key: ${{ secrets.aws_secret_key }}
+          aws-region: ${{ secrets.aws_region }}
+
+      - name: Terminate EC2 Instance
+        run: |
+          aws ec2 terminate-instances --instance-ids "${{ needs.setup.outputs.INSTANCE_ID }}"
+          aws ec2 wait instance-terminated --instance-ids "${{ needs.setup.outputs.INSTANCE_ID }}"
+
+      - name: Delete Security Group
+        run: |
+          aws ec2 delete-security-group --group-id "${{ needs.setup.outputs.SECURITY_GROUP_ID }}"
