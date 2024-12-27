@@ -58,7 +58,7 @@ var _ = Describe("Observability Installation Test Suite", func() {
 			e2e.Failf("Failed to get deployments. Error: %v", err)
 		}
 
-		By("1) Read all the deployments and verify the status of rancher-monitoring deployments")
+		By("1) Read all the deployments and verify the status of rancher-alerts deployments")
 		foundRancherAlerting := false
 		deployments := strings.Split(rancherAlertsDeployments, "\n")
 		for _, deployment := range deployments {
