@@ -1,0 +1,30 @@
+apiVersion: logging.banzaicloud.io/v1beta1
+kind: ClusterOutput
+metadata:
+  name: testclusteroutput
+  namespace: cattle-logging-system
+  labels:
+    team: qa
+spec:
+  syslog:
+    format:
+      type: json
+    host: <syslog service IP>
+    insecure: true
+    port: 514
+    transport: udp
+status:
+  active: true
+
+---
+
+apiVersion: logging.banzaicloud.io/v1beta1
+kind: ClusterFlow
+metadata:
+  name: testclusterflow
+  namespace: cattle-logging-system
+spec:
+  globalOutputRefs:
+    - testclusteroutput
+status:
+  active: true
