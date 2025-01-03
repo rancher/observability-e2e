@@ -26,7 +26,7 @@ func DeployPrometheusRule(mySession *rancher.Client, yamlPath string) error {
 	if err != nil {
 		return err
 	}
-	e2e.Logf("Successfully fetchall: %v", prometheusRuleApply)
+	e2e.Logf("Successfully: %v", prometheusRuleApply)
 
 	return nil
 }
@@ -47,7 +47,49 @@ func DeployAlertManagerConfig(mySession *rancher.Client, yamlPath string) error 
 	if err != nil {
 		return err
 	}
-	e2e.Logf("Successfully fetchall: %v", alertManagerConfigApply)
+	e2e.Logf("Successfully: %v", alertManagerConfigApply)
+
+	return nil
+}
+
+func DeployLoggingClusterOutputAndClusterFlow(mySession *rancher.Client, yamlPath string) error {
+
+	yamlContent, err := os.ReadFile(yamlPath)
+	if err != nil {
+		log.Fatalf("Failed to read file %s: %v", yamlPath, err)
+	}
+
+	importYamlInput := &management.ImportClusterYamlInput{
+		YAML: string(yamlContent),
+	}
+
+	apply := []string{"kubectl", "apply", "-f", "/root/.kube/my-pod.yaml"}
+	loggingResources, err := kubectl.Command(mySession, importYamlInput, "local", apply, "")
+	if err != nil {
+		return err
+	}
+	e2e.Logf("Successfully : %v", loggingResources)
+
+	return nil
+}
+
+func DeploySyslogResources(mySession *rancher.Client, yamlPath string) error {
+
+	yamlContent, err := os.ReadFile(yamlPath)
+	if err != nil {
+		log.Fatalf("Failed to read file %s: %v", yamlPath, err)
+	}
+
+	importYamlInput := &management.ImportClusterYamlInput{
+		YAML: string(yamlContent),
+	}
+
+	apply := []string{"kubectl", "apply", "-f", "/root/.kube/my-pod.yaml"}
+	syslogResources, err := kubectl.Command(mySession, importYamlInput, "local", apply, "")
+	if err != nil {
+		return err
+	}
+	e2e.Logf("Successfully : %v", syslogResources)
 
 	return nil
 }
