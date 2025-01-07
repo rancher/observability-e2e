@@ -1,0 +1,31 @@
+apiVersion: helm.cattle.io/v1alpha1
+kind: ProjectHelmChart
+metadata:
+  name: project-monitoring
+spec:
+  helmApiVersion: monitoring.cattle.io/v1alpha1
+  values:
+    alertmanager:
+      enabled: true
+    grafana:
+      enabled: true
+      adminUser: admin
+      adminPassword: prom-operator
+      sidecar:
+        dashboards:
+          label: grafana_dashboard
+    prometheus:
+      prometheusSpec:
+        scrapeInterval: 30s
+        evaluationInterval: 1m
+        retention: 10d
+        retentionSize: 50GB
+        resources:
+          requests:
+            cpu: 750m
+            memory: 750Mi
+          limits:
+            cpu: 1000m
+            memory: 3000Mi
+    federate:
+      enabled: true

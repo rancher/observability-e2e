@@ -40,7 +40,7 @@ const (
 	alertmanagerConfigFilePath = "../helper/yamls/alertManagerConfig.yaml"
 )
 
-var _ = Describe("Observability Installation Test Suite", func() {
+var _ = Describe("Observability Alerting E2E Test Suite", func() {
 	var clientWithSession *rancher.Client //RancherConfig *Config
 
 	JustBeforeEach(func() {

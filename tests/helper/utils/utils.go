@@ -93,3 +93,45 @@ func DeploySyslogResources(mySession *rancher.Client, yamlPath string) error {
 
 	return nil
 }
+
+func DeployYamlResource(mySession *rancher.Client, yamlPath string, namespace string) error {
+
+	yamlContent, err := os.ReadFile(yamlPath)
+	if err != nil {
+		log.Fatalf("Failed to read file %s: %v", yamlPath, err)
+	}
+
+	importYamlInput := &management.ImportClusterYamlInput{
+		YAML: string(yamlContent),
+	}
+
+	apply := []string{"kubectl", "apply", "-f", "/root/.kube/my-pod.yaml", "-n", namespace}
+	yamlApply, err := kubectl.Command(mySession, importYamlInput, "local", apply, "")
+	if err != nil {
+		return err
+	}
+	e2e.Logf("Successfully fetchall: %v", yamlApply)
+
+	return nil
+}
+
+func DeleteYamlResource(mySession *rancher.Client, yamlPath string, namespace string) error {
+
+	yamlContent, err := os.ReadFile(yamlPath)
+	if err != nil {
+		log.Fatalf("Failed to read file %s: %v", yamlPath, err)
+	}
+
+	importYamlInput := &management.ImportClusterYamlInput{
+		YAML: string(yamlContent),
+	}
+
+	apply := []string{"kubectl", "delete", "-f", "/root/.kube/my-pod.yaml", "-n", namespace}
+	yamlApply, err := kubectl.Command(mySession, importYamlInput, "local", apply, "")
+	if err != nil {
+		return err
+	}
+	e2e.Logf("Successfully fetchall: %v", yamlApply)
+
+	return nil
+}
