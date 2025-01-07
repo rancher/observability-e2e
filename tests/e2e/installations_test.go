@@ -20,6 +20,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/rancher/observability-e2e/tests/helper/charts"
+	"github.com/rancher/observability-e2e/tests/helper/utils"
 	rancher "github.com/rancher/shepherd/clients/rancher"
 	catalog "github.com/rancher/shepherd/clients/rancher/catalog"
 	extencharts "github.com/rancher/shepherd/extensions/charts"
@@ -27,7 +28,10 @@ import (
 	e2e "k8s.io/kubernetes/test/e2e/framework"
 )
 
-const exampleAppProjectName = "System"
+const (
+	exampleAppProjectName  = "System"
+	syslogResourceYamlPath = "../helper/yamls/syslogResources.yaml"
+)
 
 var _ = Describe("Observability Installation Test Suite", func() {
 	var clientWithSession *rancher.Client
@@ -242,6 +246,18 @@ var _ = Describe("Observability Installation Test Suite", func() {
 				e2e.Failf("Timeout waiting for WatchAndWaitStatefulSets to complete")
 			}
 		}
+	})
+
+	It("Install Syslog resources to capture rancher logging logs", Label("LEVEL0", "Syslog", "installation"), func() {
+
+		By("1) Deploying syslog deployment/service/config map resources")
+		deploySyslogError := utils.DeploySyslogResources(clientWithSession, syslogResourceYamlPath)
+		if deploySyslogError != nil {
+			e2e.Failf("Failed to deploy syslog resources: %v", deploySyslogError)
+		} else {
+			e2e.Logf("Syslog resources deployed successfully!")
+		}
+
 	})
 
 	It("Install Prometheus Federator chart", Label("LEVEL0", "promfed", "installation"), func() {
