@@ -41,7 +41,7 @@ const (
 )
 
 var _ = Describe("Observability Alerting E2E Test Suite", func() {
-	var clientWithSession *rancher.Client //RancherConfig *Config
+	var clientWithSession *rancher.Client // RancherConfig *Config
 
 	JustBeforeEach(func() {
 		By("Creating a client session")
@@ -50,15 +50,12 @@ var _ = Describe("Observability Alerting E2E Test Suite", func() {
 	})
 
 	It("Test : Verify status of rancher-alert Deployments using kubectl", Label("LEVEL1", "alerts", "E2E"), func() {
-
-		By("0) Fetch all the deployments belonging to rancher-alerts")
+		By("1) Fetch all the deployments belonging to rancher-alerts")
 		fetchDeployments := []string{"kubectl", "get", "deployments", "-n", "cattle-monitoring-system", "--no-headers"}
 		rancherAlertsDeployments, err := kubectl.Command(clientWithSession, nil, "local", fetchDeployments, "")
-		if err != nil {
-			e2e.Failf("Failed to get deployments. Error: %v", err)
-		}
+		Expect(err).NotTo(HaveOccurred(), "Failed to get deployments")
 
-		By("1) Read all the deployments and verify the status of rancher-alerts deployments")
+		By("2) Read all the deployments and verify the status of rancher-alerts deployments")
 		foundRancherAlerting := false
 		deployments := strings.Split(rancherAlertsDeployments, "\n")
 		for _, deployment := range deployments {
@@ -66,10 +63,8 @@ var _ = Describe("Observability Alerting E2E Test Suite", func() {
 				continue
 			}
 
-			fields := strings.Fields(deployment) // Split the line into deployment name and its current status
-			if len(fields) < 4 {
-				e2e.Failf("Unexpected output format for deployment: %s", deployment)
-			}
+			fields := strings.Fields(deployment)
+			Expect(len(fields)).To(BeNumerically(">=", 4), "Unexpected output format for deployment: %s", deployment)
 
 			deploymentName := fields[0]
 			readyReplicas := fields[1]
@@ -80,36 +75,20 @@ var _ = Describe("Observability Alerting E2E Test Suite", func() {
 
 			if strings.HasPrefix(deploymentName, "rancher-alerting") {
 				foundRancherAlerting = true
-
-				if availableReplicas == desiredCount {
-					e2e.Logf("Success: Deployment %s is fully available. Desired: %s, Available: %s", deploymentName, desiredCount, availableReplicas)
-				} else {
-					e2e.Failf("Failure: Deployment %s is not fully available. Desired: %s, Available: %s", deploymentName, desiredCount, availableReplicas)
-				}
-
-				if readyCount == desiredCount {
-					e2e.Logf("Success: Deployment %s pods are fully ready. Desired: %s, Ready: %s", deploymentName, desiredCount, readyCount)
-				} else {
-					e2e.Failf("Failure: Deployment %s pods are not fully ready. Desired: %s, Ready: %s", deploymentName, desiredCount, readyCount)
-				}
+				Expect(availableReplicas).To(Equal(desiredCount), "Deployment %s is not fully available. Desired: %s, Available: %s", deploymentName, desiredCount, availableReplicas)
+				Expect(readyCount).To(Equal(desiredCount), "Deployment %s pods are not fully ready. Desired: %s, Ready: %s", deploymentName, desiredCount, readyCount)
 			}
 		}
-		if !foundRancherAlerting {
-			e2e.Failf("No deployments found starting with 'rancher-alerting'")
-		}
-
+		Expect(foundRancherAlerting).To(BeTrue(), "No deployments found starting with 'rancher-alerting'")
 	})
 
 	It("Test : Verify status of rancher-alerts pods using kubectl", Label("LEVEL1", "alerts", "E2E"), func() {
-
-		By("0) Fetch all the pods belongs to rancher-alerts")
+		By("1) Fetch all the pods belongs to rancher-alerts")
 		fetchPods := []string{"kubectl", "get", "pods", "-n", "cattle-monitoring-system", "--no-headers"}
 		rancherAlertsPods, err := kubectl.Command(clientWithSession, nil, "local", fetchPods, "")
-		if err != nil {
-			e2e.Failf("Failed to get pods . Error: %v", err)
-		}
+		Expect(err).NotTo(HaveOccurred(), "Failed to get pods")
 
-		By("1) Read all the pods and verify the status of rancher-alerts-Pods")
+		By("2) Read all the pods and verify the status of rancher-alerts-Pods")
 		rancherAlertingFoundPod := false
 		alertmanagerFoundPod := false
 		pods := strings.Split(rancherAlertsPods, "\n")
@@ -118,9 +97,7 @@ var _ = Describe("Observability Alerting E2E Test Suite", func() {
 				continue
 			}
 			fields := strings.Fields(pod) // Split the line into pod name and its current status
-			if len(fields) < 3 {
-				e2e.Failf("Unexpected output format for pod: %s", pod)
-			}
+			Expect(len(fields)).To(BeNumerically(">=", 3), "Unexpected output format for pod: %s", pod)
 
 			podName := fields[0]
 			podStatus := fields[2]
@@ -131,36 +108,25 @@ var _ = Describe("Observability Alerting E2E Test Suite", func() {
 			if strings.HasPrefix(podName, "alertmanager") && podStatus == "Running" {
 				alertmanagerFoundPod = true
 			}
-
-		}
-		if !rancherAlertingFoundPod {
-			e2e.Failf("Pod with name 'rancher-alerting' is not running or not present")
-		}
-		if !alertmanagerFoundPod {
-			e2e.Failf("Pod with name 'alertmanager' is not running or not present")
 		}
 
+		Expect(rancherAlertingFoundPod).To(BeTrue(), "Pod with name 'rancher-alerting' is not running or not present")
+		Expect(alertmanagerFoundPod).To(BeTrue(), "Pod with name 'alertmanager' is not running or not present")
 	})
 
 	It("Test : Verify Creating alert manager config using kubectl", Label("LEVEL1", "alerts", "E2E", "AMC"), func() {
-
 		By("1) Apply yaml to create alert manager config")
 		alertManagerConfigError := utils.DeployAlertManagerConfig(clientWithSession, alertmanagerConfigFilePath)
-
 		if alertManagerConfigError != nil {
 			e2e.Logf("Failed to deploy AMC rule: %v", alertManagerConfigError)
-		} else {
-			e2e.Logf("AMC deployed successfully!")
 		}
 
 		By("2) Fetch all the AMC")
 		fetchAlertManagerConfig := []string{"kubectl", "get", "AlertmanagerConfig", "amc", "-n", "cattle-monitoring-system"}
 		verifyAlertManagerConfig, err := kubectl.Command(clientWithSession, nil, "local", fetchAlertManagerConfig, "")
-		if err != nil {
-			e2e.Failf("Failed to fetch alert manager config 'amc'. Error: %v", err)
-		}
-		e2e.Logf("Successfully fetched AMC: %v", verifyAlertManagerConfig)
+		Expect(err).NotTo(HaveOccurred(), "Failed to fetch alert manager config 'amc'")
 
+		e2e.Logf("Successfully fetched AMC: %v", verifyAlertManagerConfig)
 	})
 
 })
