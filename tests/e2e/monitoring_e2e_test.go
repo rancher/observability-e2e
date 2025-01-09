@@ -47,7 +47,7 @@ const (
 
 // var ruleLabel = map[string]string{"team": "qa"}
 
-var _ = Describe("Observability Installation Test Suite", func() {
+var _ = Describe("Observability Monitoring E2E Test Suite", func() {
 	var clientWithSession *rancher.Client //RancherConfig *Config
 
 	JustBeforeEach(func() {
