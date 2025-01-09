@@ -119,9 +119,9 @@ var _ = Describe("Observability Logging E2E Test Suite", func() {
 		fetchDaemonSets := []string{"kubectl", "get", "daemonsets", "-n", "cattle-logging-system", "--no-headers"}
 		rancherLoggingDaemonSets, err := kubectl.Command(clientWithSession, nil, "local", fetchDaemonSets, "")
 		if err != nil {
-			e2e.Failf("Failed to get daemonsets . Error: %v", err)
+			e2e.Failf("Failed to get daemonsets. Error: %v", err)
 		}
-		e2e.Logf("Deamonset Fetched --> %v", rancherLoggingDaemonSets)
+		e2e.Logf("Deamonset Fetched succsefully %v", rancherLoggingDaemonSets)
 
 		By("1) Read all the daemonSet and verify the status of rancher-logging-daemonSets")
 		daemonSets := strings.Split(rancherLoggingDaemonSets, "\n")
@@ -191,7 +191,7 @@ var _ = Describe("Observability Logging E2E Test Suite", func() {
 
 	})
 
-	It("Test: Verify creation of Rancher cluster output and cluster flow", Label("LEVEL1", "Logging", "E2E", "test"), func() {
+	It("Test: Verify creation of Rancher cluster output and cluster flow", Label("LEVEL1", "Logging", "E2E"), func() {
 
 		By("1) Fetching syslog service IP for cluster output host")
 		syslogServiceCmd := []string{"kubectl", "get", "svc", "syslog-ng-service", "-n", "cattle-logging-system", "--no-headers"}
@@ -226,8 +226,6 @@ var _ = Describe("Observability Logging E2E Test Suite", func() {
 		deployLoggingResourcesError := utils.DeployLoggingClusterOutputAndClusterFlow(clientWithSession, loggingResourceYamlPath)
 		if deployLoggingResourcesError != nil {
 			e2e.Failf("Failed to deploy cluster output and flow: %v", deployLoggingResourcesError)
-		} else {
-			e2e.Logf("Cluster output and flow deployed successfully!")
 		}
 
 		By("4) Fetching cluster output")
@@ -299,7 +297,9 @@ var _ = Describe("Observability Logging E2E Test Suite", func() {
 								time.Sleep(retryInterval)
 							}
 						} else {
-							e2e.Logf("Syslog found. %v", syslogLogsOutput)
+							logLines := strings.Split(syslogLogsOutput, "\n")
+							startIdx := max(0, len(logLines)-5)
+							e2e.Logf("Syslog found :\n%s", strings.Join(logLines[startIdx:], "\n"))
 							break
 						}
 					}
