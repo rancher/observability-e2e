@@ -18,7 +18,7 @@ const (
 	loggingResourceYamlPath = "../helper/yamls/clusterOutputandClusterFlow.yaml"
 )
 
-var _ = Describe("Observability E2E Test Suite", func() {
+var _ = Describe("Observability Logging E2E Test Suite", func() {
 	var clientWithSession *rancher.Client //RancherConfig *Config
 
 	JustBeforeEach(func() {

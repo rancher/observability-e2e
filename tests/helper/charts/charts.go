@@ -1,6 +1,7 @@
 package charts
 
 import (
+	"strings"
 	"time"
 
 	"github.com/rancher/shepherd/extensions/clusters"
@@ -89,7 +90,7 @@ func newChartInstall(name, version, clusterID, clusterName, url, repoName, proje
 					"rkeWindowsPathPrefix":  "",
 					"systemDefaultRegistry": defaultRegistry,
 					"url":                   url,
-					"systemProjectId":       projectID,
+					"systemProjectId":       strings.TrimPrefix(projectID, "local:"),
 				},
 				"systemDefaultRegistry": defaultRegistry,
 			},
