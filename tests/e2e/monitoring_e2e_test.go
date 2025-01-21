@@ -45,8 +45,6 @@ const (
 	prometheusRuleFilePath   = "../helper/yamls/createPrometheusRule.yaml"
 )
 
-// var ruleLabel = map[string]string{"team": "qa"}
-
 var _ = Describe("Observability Monitoring E2E Test Suite", func() {
 	var clientWithSession *rancher.Client //RancherConfig *Config
 
@@ -60,20 +58,13 @@ var _ = Describe("Observability Monitoring E2E Test Suite", func() {
 
 		By("1) Apply yaml to create prometheus rule")
 		prometheusError := utils.DeployPrometheusRule(clientWithSession, prometheusRuleFilePath)
-
-		if prometheusError != nil {
-			e2e.Logf("Failed to deploy Prometheus rule: %v", prometheusError)
-		} else {
-			e2e.Logf("Prometheus Rule deployed successfully!")
-		}
+		Expect(prometheusError).To(BeNil(), "Failed to deploy Prometheus rule")
 
 		By("2) Fetch all the prometheus rule")
 		fetchPrometheusRules := []string{"kubectl", "get", "prometheusRule", "test-prometheus-rule", "-n", "cattle-monitoring-system"}
 		verifyPetchPrometheusRules, err := kubectl.Command(clientWithSession, nil, "local", fetchPrometheusRules, "")
-		if err != nil {
-			e2e.Failf("Failed to fetch PrometheusRule 'test-prometheus-rule'. Error: %v", err)
-		}
-		e2e.Logf("Successfully fetched PrometheusRule: %v", verifyPetchPrometheusRules)
+		Expect(err).NotTo(HaveOccurred(), "Failed to fetch PrometheusRule 'test-prometheus-rule'. Error: %v", err)
+		Expect(verifyPetchPrometheusRules).NotTo(BeEmpty(), "Failed to fetch PrometheusRule: expected non-empty response")
 	})
 
 	It("Test : Verify default Watchdog alert is present", Label("LEVEL1", "monitoring", "E2E"), func() {
@@ -81,25 +72,21 @@ var _ = Describe("Observability Monitoring E2E Test Suite", func() {
 		By("1) Create a container to access curl")
 		creatContainer := []string{"kubectl", "run", "test", "--image=ranchertest/mytestcontainer", "-n", "default"}
 		_, err := kubectl.Command(clientWithSession, nil, "local", creatContainer, "")
-		if err != nil {
-			e2e.Failf("Failed to create container. Error: %v", err)
-		}
+		Expect(err).NotTo(HaveOccurred(), "Failed to create container")
 
 		time.Sleep(30 * time.Second)
 
 		By("2) Fetching alerts via Curl request")
 		curl := []string{"kubectl", "exec", "test", "-n", "default", "--", "curl", "-s", "http://rancher-monitoring-alertmanager.cattle-monitoring-system:9093/api/v2/alerts"}
 		output, err := kubectl.Command(clientWithSession, nil, "local", curl, "")
+		Expect(err).NotTo(HaveOccurred(), "Failed to get curl response")
 		output = strings.TrimSpace(output)
-		if err != nil {
-			e2e.Failf("Failed to get curl response. Error: %v", err)
-		}
+		Expect(output).NotTo(BeEmpty(), "Received empty curl response")
 
 		By("3) Unmarshalling json output response")
 		var alerts []Alert
-		if err := json.Unmarshal([]byte(output), &alerts); err != nil {
-			e2e.Failf("Failed to unmarshal JSON response. Error: %v", err)
-		}
+		err = json.Unmarshal([]byte(output), &alerts)
+		Expect(err).NotTo(HaveOccurred(), "Failed to unmarshal JSON response")
 
 		By("4) Search for the Watchdog alert")
 		var watchdogAlert *Alert
@@ -110,22 +97,16 @@ var _ = Describe("Observability Monitoring E2E Test Suite", func() {
 			}
 		}
 
-		By("5)Assert if the Watchdog alert was found ")
-		if watchdogAlert == nil {
-			e2e.Failf("Expected 'Watchdog' alert not found in response")
-		}
+		By("5)Assert if the Watchdog alert was found")
+		Expect(watchdogAlert).NotTo(BeNil(), "Expected 'Watchdog' alert not found in response")
 
 		defer func() {
 			By("6) Deleting the container")
 			deleteContainer := []string{"kubectl", "delete", "pod", "test", "-n", "default"}
 			deleteConfirm, err := kubectl.Command(clientWithSession, nil, "local", deleteContainer, "")
-			if err != nil {
-				e2e.Logf("Failed to delete container. Error: %v", err)
-			} else {
-				e2e.Logf("Verified container is deleted %v", deleteConfirm)
-			}
+			Expect(err).NotTo(HaveOccurred(), "Failed to delete container")
+			Expect(deleteConfirm).To(ContainSubstring("pod \"test\" deleted"), "Failed to verify container is deleted")
 		}()
-
 	})
 
 	It("Test : Verify status of rancher-monitoring pods using kubectl", Label("LEVEL1", "monitoring", "E2E"), func() {
@@ -133,9 +114,7 @@ var _ = Describe("Observability Monitoring E2E Test Suite", func() {
 		By("0) Fetch all the pods belongs to rancher-monitoring")
 		fetchPods := []string{"kubectl", "get", "pods", "-n", "cattle-monitoring-system", "--no-headers"}
 		rancherMonitoringPods, err := kubectl.Command(clientWithSession, nil, "local", fetchPods, "")
-		if err != nil {
-			e2e.Failf("Failed to get pods . Error: %v", err)
-		}
+		Expect(err).NotTo(HaveOccurred(), "Failed to get pods")
 
 		By("1) Read all the pods and verify the status of rancher-monitoring-Pods")
 		pods := strings.Split(rancherMonitoringPods, "\n")
@@ -145,18 +124,13 @@ var _ = Describe("Observability Monitoring E2E Test Suite", func() {
 			}
 
 			fields := strings.Fields(pod) // Split the line into pod name and its current status
-			if len(fields) < 3 {
-				e2e.Failf("Unexpected output format for pod: %s", pod)
-			}
+			Expect(len(fields)).To(BeNumerically(">", 2), "Unexpected output format for pod: %s", pod)
 
 			podName := fields[0]
 			podStatus := fields[2]
 
-			if (podStatus != "Running") && (!strings.HasPrefix(podName, "rancher-monitoring")) { // Check if pod status is not 'Running'
-				e2e.Failf("Pod %s is not in 'Running' state, current state: %s", podName, podStatus)
-			}
+			Expect(podStatus).To(Equal("Running"), "Pod %s is not in 'Running' state, current state: %s", podName, podStatus)
 		}
-
 	})
 
 	It("Test : Verify status of rancher-monitoring Deployments using kubectl", Label("LEVEL1", "monitoring", "E2E"), func() {
@@ -164,9 +138,7 @@ var _ = Describe("Observability Monitoring E2E Test Suite", func() {
 		By("0) Fetch all the deployments belonging to rancher-monitoring")
 		fetchDeployments := []string{"kubectl", "get", "deployments", "-n", "cattle-monitoring-system", "--no-headers"}
 		rancherMonitoringDeployments, err := kubectl.Command(clientWithSession, nil, "local", fetchDeployments, "")
-		if err != nil {
-			e2e.Failf("Failed to get deployments. Error: %v", err)
-		}
+		Expect(err).NotTo(HaveOccurred(), "Failed to get deployments")
 
 		By("1) Read all the deployments and verify the status of rancher-monitoring deployments")
 		deployments := strings.Split(rancherMonitoringDeployments, "\n")
@@ -176,9 +148,7 @@ var _ = Describe("Observability Monitoring E2E Test Suite", func() {
 			}
 
 			fields := strings.Fields(deployment) // Split the line into deployment name and its current status
-			if len(fields) < 4 {
-				e2e.Failf("Unexpected output format for deployment: %s", deployment)
-			}
+			Expect(len(fields)).To(BeNumerically(">", 3), "Unexpected output format for deployment: %s", deployment)
 
 			deploymentName := fields[0]
 			readyReplicas := fields[1]
@@ -187,15 +157,10 @@ var _ = Describe("Observability Monitoring E2E Test Suite", func() {
 			readyCount := strings.Split(readyReplicas, "/")[0]
 			desiredCount := strings.Split(readyReplicas, "/")[1]
 
-			if availableReplicas != desiredCount && !strings.HasPrefix(deploymentName, "rancher-monitoring") {
-				e2e.Failf("Deployment %s is not fully available. Desired: %s, Available: %s", deploymentName, desiredCount, availableReplicas)
-			}
+			Expect(availableReplicas).To(Equal(desiredCount), "Deployment %s is not fully available. Desired: %s, Available: %s", deploymentName, desiredCount, availableReplicas)
 
-			if readyCount != desiredCount && !strings.HasPrefix(deploymentName, "rancher-monitoring") {
-				e2e.Failf("Deployment %s is not fully ready. Desired: %s, Ready: %s", deploymentName, desiredCount, readyCount)
-			}
+			Expect(readyCount).To(Equal(desiredCount), "Deployment %s is not fully ready. Desired: %s, Ready: %s", deploymentName, desiredCount, readyCount)
 		}
-
 	})
 
 	It("Test : Verify status of rancher-monitoring DaemonSets using kubectl", Label("LEVEL1", "monitoring", "E2E"), func() {
@@ -203,9 +168,7 @@ var _ = Describe("Observability Monitoring E2E Test Suite", func() {
 		By("0) Fetch all the daemon sets belongs to rancher-monitoring")
 		fetchPods := []string{"kubectl", "get", "daemonsets", "-n", "cattle-monitoring-system", "--no-headers"}
 		rancherMonitoringDaemonSets, err := kubectl.Command(clientWithSession, nil, "local", fetchPods, "")
-		if err != nil {
-			e2e.Failf("Failed to get daemonsets . Error: %v", err)
-		}
+		Expect(err).NotTo(HaveOccurred(), "Failed to get daemonsets")
 
 		By("1) Read all the daemonSet and verify the status of rancher-monitoring-daemonSets")
 		daemonSets := strings.Split(rancherMonitoringDaemonSets, "\n")
@@ -215,24 +178,17 @@ var _ = Describe("Observability Monitoring E2E Test Suite", func() {
 			}
 
 			fields := strings.Fields(daemonSet) // Split the line into pod name and its current status
-			if len(fields) < 6 {
-				e2e.Failf("Unexpected output format for daemonSet: %s", daemonSet)
-			}
+			Expect(len(fields)).To(BeNumerically(">", 5), "Unexpected output format for daemonSet: %s", daemonSet)
 
 			daemonSetName := fields[0]
 			desiredPods := fields[1]
 			readyPods := fields[3]
 			availablePods := fields[5]
 
-			if desiredPods != availablePods {
-				e2e.Failf("DaemonSet %s is not fully available. Desired: %s, Available: %s", daemonSetName, desiredPods, availablePods)
-			}
+			Expect(availablePods).To(Equal(desiredPods), "DaemonSet %s is not fully available. Desired: %s, Available: %s", daemonSetName, desiredPods, availablePods)
 
-			if readyPods != desiredPods {
-				e2e.Failf("DaemonSet %s is not fully ready. Desired: %s, Ready: %s", daemonSetName, desiredPods, readyPods)
-			}
+			Expect(readyPods).To(Equal(desiredPods), "DaemonSet %s is not fully ready. Desired: %s, Ready: %s", daemonSetName, desiredPods, readyPods)
 		}
-
 	})
 
 	It("Test: Verify newly created Prometheus rule alert is present", Label("LEVEL1", "monitoring", "E2E", "PromFed"), func() {
@@ -240,9 +196,7 @@ var _ = Describe("Observability Monitoring E2E Test Suite", func() {
 		By("1) Creating a container for curl access")
 		createContainerCommand := []string{"kubectl", "run", "curl-container", "--image=ranchertest/mytestcontainer", "-n", "default"}
 		_, err := kubectl.Command(clientWithSession, nil, "local", createContainerCommand, "")
-		if err != nil {
-			e2e.Failf("Failed to create container. Error: %v", err)
-		}
+		Expect(err).NotTo(HaveOccurred(), "Failed to create container")
 
 		// Wait for the container to be ready
 		var prometheusRuleAlert *Alert
@@ -255,24 +209,18 @@ var _ = Describe("Observability Monitoring E2E Test Suite", func() {
 			By("2) Fetching alerts using curl request")
 			curlCommand := []string{"kubectl", "exec", "curl-container", "-n", "default", "--", "curl", "-s", "http://rancher-monitoring-alertmanager.cattle-monitoring-system:9093/api/v2/alerts"}
 			curlResponse, err := kubectl.Command(clientWithSession, nil, "local", curlCommand, "")
+			Expect(err).NotTo(HaveOccurred(), "Failed to get curl response")
 			curlResponse = strings.TrimSpace(curlResponse)
-			if err != nil {
-				e2e.Failf("Failed to get curl response. Error: %v", err)
-			}
 
 			By("3) Unmarshalling JSON response")
 			var alerts []Alert
-			if err := json.Unmarshal([]byte(curlResponse), &alerts); err != nil {
-				e2e.Failf("Failed to unmarshal JSON response. Error: %v", err)
-			}
+			err = json.Unmarshal([]byte(curlResponse), &alerts)
+			Expect(err).NotTo(HaveOccurred(), "Failed to unmarshal JSON response")
 
 			alertNamePattern := regexp.MustCompile("test-qa")
 
 			By("4) Searching for the newly created Prometheus rule alert")
-
-			// Search for the alert in the current iteration
 			for _, alert := range alerts {
-				e2e.Logf("Checking alerts line wise ----> %v", alert)
 				if alertNamePattern.MatchString(alert.Labels["alertname"]) {
 					prometheusRuleAlert = &alert
 					break
@@ -293,23 +241,15 @@ var _ = Describe("Observability Monitoring E2E Test Suite", func() {
 		}
 
 		By("5) Verifying if the Prometheus rule alert was found")
-		if prometheusRuleAlert == nil {
-			e2e.Failf("Expected Prometheus rule alert not found in the response")
-		} else {
-			e2e.Logf("Found Prometheus rule alert: %+v\n", prometheusRuleAlert)
-		}
+		Expect(prometheusRuleAlert).NotTo(BeNil(), "Expected Prometheus rule alert not found in the response")
 
 		defer func() {
 			By("6) Deleting the test container")
 			deleteContainerCommand := []string{"kubectl", "delete", "pod", "curl-container", "-n", "default"}
 			deleteResponse, err := kubectl.Command(clientWithSession, nil, "local", deleteContainerCommand, "")
-			if err != nil {
-				e2e.Logf("Failed to delete container. Error: %v", err)
-			} else {
-				e2e.Logf("Verified container is deleted: %v", deleteResponse)
-			}
+			Expect(err).NotTo(HaveOccurred(), "Failed to delete container")
+			Expect(deleteResponse).To(ContainSubstring("pod \"curl-container\" deleted"), "Failed to verify container is deleted")
 		}()
-
 	})
 
 })
