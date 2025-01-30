@@ -49,7 +49,8 @@ var _ = Describe("Observability Alerting E2E Test Suite", func() {
 		Expect(err).NotTo(HaveOccurred())
 	})
 
-	It("Test : Verify status of rancher-alert Deployments using kubectl", Label("LEVEL1", "alerts", "E2E"), func() {
+	It("[QASE-6831] Test : Verify status of rancher-alert Deployments using kubectl", Label("LEVEL1", "alerts", "E2E"), func() {
+		testCaseID = 6831
 		By("1) Fetch all the deployments belonging to rancher-alerts")
 		fetchDeployments := []string{"kubectl", "get", "deployments", "-n", "cattle-monitoring-system", "--no-headers"}
 		rancherAlertsDeployments, err := kubectl.Command(clientWithSession, nil, "local", fetchDeployments, "")
@@ -82,7 +83,8 @@ var _ = Describe("Observability Alerting E2E Test Suite", func() {
 		Expect(foundRancherAlerting).To(BeTrue(), "No deployments found starting with 'rancher-alerting'")
 	})
 
-	It("Test : Verify status of rancher-alerts pods using kubectl", Label("LEVEL1", "alerts", "E2E"), func() {
+	It("[QASE-6832] Test : Verify status of rancher-alerts pods using kubectl", Label("LEVEL1", "alerts", "E2E"), func() {
+		testCaseID = 6832
 		By("1) Fetch all the pods belongs to rancher-alerts")
 		fetchPods := []string{"kubectl", "get", "pods", "-n", "cattle-monitoring-system", "--no-headers"}
 		rancherAlertsPods, err := kubectl.Command(clientWithSession, nil, "local", fetchPods, "")
@@ -114,7 +116,8 @@ var _ = Describe("Observability Alerting E2E Test Suite", func() {
 		Expect(alertmanagerFoundPod).To(BeTrue(), "Pod with name 'alertmanager' is not running or not present")
 	})
 
-	It("Test : Verify Creating alert manager config using kubectl", Label("LEVEL1", "alerts", "E2E", "AMC"), func() {
+	It("[QASE-6833] Test : Verify Creating alert manager config using kubectl", Label("LEVEL1", "alerts", "E2E", "AMC"), func() {
+		testCaseID = 6833
 		By("1) Apply yaml to create alert manager config")
 		alertManagerConfigError := utils.DeployAlertManagerConfig(clientWithSession, alertmanagerConfigFilePath)
 		if alertManagerConfigError != nil {

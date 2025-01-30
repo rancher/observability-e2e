@@ -8,7 +8,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/rancher/norman v0.0.0-20240708202514-a0127673d1b9
 	github.com/rancher/shepherd v0.0.0-20241212232543-647f133ff65c // rancher/shepherd release/v2.10-HEAD commit
-	github.com/sirupsen/logrus v1.9.3 // indirect
+	github.com/sirupsen/logrus v1.9.3
 	k8s.io/apimachinery v0.30.2
 	k8s.io/utils v0.0.0-20240102154912-e7106e64919e // indirect
 )
@@ -18,6 +18,7 @@ require (
 	github.com/creasty/defaults v1.5.2
 	github.com/onsi/ginkgo/v2 v2.20.2
 	github.com/onsi/gomega v1.34.2
+	github.com/rancher-sandbox/qase-ginkgo v1.0.1
 	github.com/rancher/rancher v0.0.0-00010101000000-000000000000
 	github.com/rancher/rancher/pkg/apis v0.0.0-20240719121207-baeda6b89fe3
 	gopkg.in/yaml.v2 v2.4.0
@@ -28,6 +29,7 @@ require (
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161 // indirect
 	github.com/MakeNowJust/heredoc v1.0.0 // indirect
+	github.com/antihax/optional v1.0.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
@@ -93,6 +95,7 @@ require (
 	github.com/spf13/cobra v1.8.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/xlab/treeprint v1.2.0 // indirect
+	go.qase.io/client v0.0.0-20231114201952-65195ec001fa // indirect
 	go.starlark.net v0.0.0-20231101134539-556fd59b42f6 // indirect
 	golang.org/x/net v0.29.0 // indirect
 	golang.org/x/oauth2 v0.23.0 // indirect
