@@ -288,7 +288,7 @@ jobs:
           rm -f $GITHUB_WORKSPACE/cattle-config.yaml
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: test-artifacts
           path: ~/artifacts

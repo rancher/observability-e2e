@@ -110,9 +110,9 @@ jobs:
           TEST_LABEL_FILTER=E2E go test -timeout 30m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-e2e-${{ matrix.tag }}.txt
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: test-artifacts
+          name: test-artifacts-${{ matrix.tag }}
           path: ~/artifacts
 
       - name: Cleanup all containers
