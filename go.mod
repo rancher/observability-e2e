@@ -7,30 +7,32 @@ toolchain go1.22.7
 require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/rancher/norman v0.0.0-20240708202514-a0127673d1b9
-	github.com/rancher/shepherd v0.0.0-20240913161053-43e119d13724 // rancher/shepherd release/v2.9-HEAD commit
+	github.com/rancher/shepherd v0.0.0-20241212232543-647f133ff65c // rancher/shepherd release/v2.10-HEAD commit
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	k8s.io/apimachinery v0.30.2
 	k8s.io/utils v0.0.0-20240102154912-e7106e64919e // indirect
 )
 
 require (
+	github.com/aws/aws-sdk-go v1.50.38
+	github.com/creasty/defaults v1.5.2
 	github.com/onsi/ginkgo/v2 v2.20.2
 	github.com/onsi/gomega v1.34.2
 	github.com/rancher/rancher v0.0.0-00010101000000-000000000000
 	github.com/rancher/rancher/pkg/apis v0.0.0-20240719121207-baeda6b89fe3
+	gopkg.in/yaml.v2 v2.4.0
+	k8s.io/api v0.30.2
 	k8s.io/kubernetes v1.30.1
 )
 
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161 // indirect
 	github.com/MakeNowJust/heredoc v1.0.0 // indirect
-	github.com/aws/aws-sdk-go v1.50.38 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/chai2010/gettext-go v1.0.2 // indirect
 	github.com/creack/pty v1.1.20 // indirect
-	github.com/creasty/defaults v1.5.2 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
 	github.com/evanphx/json-patch v5.7.0+incompatible // indirect
@@ -103,9 +105,7 @@ require (
 	google.golang.org/protobuf v1.34.1 // indirect
 	gopkg.in/evanphx/json-patch.v5 v5.7.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/api v0.30.2 // indirect
 	k8s.io/apiextensions-apiserver v0.30.1 // indirect
 	k8s.io/apiserver v0.30.1 // indirect
 	k8s.io/cli-runtime v0.30.1 // indirect

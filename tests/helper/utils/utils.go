@@ -1,12 +1,16 @@
 package utils
 
 import (
+	"fmt"
 	"log"
 	"os"
 
+	"github.com/creasty/defaults"
 	rancher "github.com/rancher/shepherd/clients/rancher"
 	management "github.com/rancher/shepherd/clients/rancher/generated/management/v3"
 	"github.com/rancher/shepherd/extensions/kubectl"
+	shepherdConfig "github.com/rancher/shepherd/pkg/config"
+	"gopkg.in/yaml.v2"
 	e2e "k8s.io/kubernetes/test/e2e/framework"
 )
 
@@ -133,5 +137,30 @@ func DeleteYamlResource(mySession *rancher.Client, yamlPath string, namespace st
 	}
 	e2e.Logf("Successfully fetchall: %v", yamlApply)
 
+	return nil
+}
+
+// LoadConfigIntoStruct loads a config file and unmarshals it into the given struct.
+func LoadConfigIntoStruct(filePath string, config interface{}) error {
+	// Load the config file as a map
+	configMap := shepherdConfig.LoadConfigFromFile(filePath)
+	if configMap == nil {
+		return fmt.Errorf("failed to load config file: %s", filePath)
+	}
+	// Marshal the map into bytes
+	configBytes, err := yaml.Marshal(configMap)
+	if err != nil {
+		return fmt.Errorf("failed to marshal config map: %w", err)
+	}
+
+	// Unmarshal the bytes into the config struct (ensure config is a pointer)
+	if err := yaml.Unmarshal(configBytes, config); err != nil {
+		return fmt.Errorf("failed to unmarshal into config struct: %w", err)
+	}
+
+	// Apply defaults, config must be a pointer
+	if err := defaults.Set(config); err != nil {
+		return fmt.Errorf("failed to set default values: %w", err)
+	}
 	return nil
 }
