@@ -26,8 +26,8 @@ var _ = Describe("Observability Logging E2E Test Suite", func() {
 		Expect(err).NotTo(HaveOccurred())
 	})
 
-	It("Test : Verify status of rancher-logging Deployments using kubectl", Label("LEVEL1", "Logging", "E2E"), func() {
-
+	It("[QASE-6834] Test : Verify status of rancher-logging Deployments using kubectl", Label("LEVEL1", "Logging", "E2E"), func() {
+		testCaseID = 6834
 		By("0) Fetch all the deployments belonging to rancher-logging")
 		fetchDeployments := []string{"kubectl", "get", "deployments", "-n", "cattle-logging-system", "--no-headers"}
 		rancherLoggingDeployments, err := kubectl.Command(clientWithSession, nil, "local", fetchDeployments, "")
@@ -61,8 +61,8 @@ var _ = Describe("Observability Logging E2E Test Suite", func() {
 		Expect(foundRancherLogging).To(BeTrue(), "No deployments found starting with 'rancher-logging'")
 	})
 
-	It("Test : Verify status of rancher-logging pods using kubectl", Label("LEVEL1", "Logging", "E2E"), func() {
-
+	It("[QASE-6835] Test : Verify status of rancher-logging pods using kubectl", Label("LEVEL1", "Logging", "E2E"), func() {
+		testCaseID = 6835
 		By("0) Fetch all the pods belongs to rancher-logging")
 		fetchPods := []string{"kubectl", "get", "pods", "-n", "cattle-logging-system", "--no-headers"}
 		rancherLoggingPods, err := kubectl.Command(clientWithSession, nil, "local", fetchPods, "")
@@ -88,8 +88,8 @@ var _ = Describe("Observability Logging E2E Test Suite", func() {
 		Expect(rancherLoggingPodFound).To(BeTrue(), "Pod with name 'rancher-logging' is not running or not present")
 	})
 
-	It("Test : Verify status of rancher-logging DaemonSets using kubectl", Label("LEVEL1", "Logging", "E2E"), func() {
-
+	It("[QASE-6836] Test : Verify status of rancher-logging DaemonSets using kubectl", Label("LEVEL1", "Logging", "E2E"), func() {
+		testCaseID = 6836
 		By("0) Fetch all the daemon sets belongs to rancher-logging")
 		fetchDaemonSets := []string{"kubectl", "get", "daemonsets", "-n", "cattle-logging-system", "--no-headers"}
 		rancherLoggingDaemonSets, err := kubectl.Command(clientWithSession, nil, "local", fetchDaemonSets, "")
@@ -115,8 +115,8 @@ var _ = Describe("Observability Logging E2E Test Suite", func() {
 		}
 	})
 
-	It("Test : Verify status of rancher-logging StatefulSets using kubectl", Label("LEVEL1", "Logging", "E2E"), func() {
-
+	It("[QASE-6837] Test : Verify status of rancher-logging StatefulSets using kubectl", Label("LEVEL1", "Logging", "E2E"), func() {
+		testCaseID = 6837
 		By("0) Fetch all the StatefulSets belongs to rancher-logging")
 		fetchStatefulsets := []string{"kubectl", "get", "statefulsets", "-n", "cattle-logging-system", "--no-headers"}
 		rancherLoggingStatefulsets, err := kubectl.Command(clientWithSession, nil, "local", fetchStatefulsets, "")
@@ -144,8 +144,8 @@ var _ = Describe("Observability Logging E2E Test Suite", func() {
 		}
 	})
 
-	It("Test: Verify creation of Rancher cluster output and cluster flow", Label("LEVEL1", "Logging", "E2E"), func() {
-
+	It("[QASE-6838] Test: Verify creation of Rancher cluster output and cluster flow", Label("LEVEL1", "Logging", "E2E"), func() {
+		testCaseID = 6838
 		By("1) Fetching syslog service IP for cluster output host")
 		syslogServiceCmd := []string{"kubectl", "get", "svc", "syslog-ng-service", "-n", "cattle-logging-system", "--no-headers"}
 		syslogServiceOutput, err := kubectl.Command(clientWithSession, nil, "local", syslogServiceCmd, "")

@@ -20,6 +20,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	. "github.com/rancher-sandbox/qase-ginkgo"
 	"github.com/rancher/norman/types"
 	rancher "github.com/rancher/shepherd/clients/rancher"
 	management "github.com/rancher/shepherd/clients/rancher/generated/management/v3"
@@ -35,7 +36,13 @@ var (
 	cluster         *clusters.ClusterMeta
 	registrySetting *management.Setting
 	err             error
+	testCaseID      int64
 )
+
+var _ = ReportAfterEach(func(report SpecReport) {
+	// Add result in Qase if asked
+	Qase(testCaseID, report)
+})
 
 func FailWithReport(message string, callerSkip ...int) {
 	// Ensures the correct line numbers are reported

@@ -54,8 +54,8 @@ var _ = Describe("Observability Monitoring E2E Test Suite", func() {
 		Expect(err).NotTo(HaveOccurred())
 	})
 
-	It("Test : Verify Creating prometheus rule using kubectl", Label("LEVEL1", "monitoring", "E2E", "PromFed"), func() {
-
+	It("[QASE-3911] Test : Verify Creating prometheus rule using kubectl", Label("LEVEL1", "monitoring", "E2E", "PromFed"), func() {
+		testCaseID = 3911
 		By("1) Apply yaml to create prometheus rule")
 		prometheusError := utils.DeployPrometheusRule(clientWithSession, prometheusRuleFilePath)
 		Expect(prometheusError).To(BeNil(), "Failed to deploy Prometheus rule")
@@ -67,8 +67,8 @@ var _ = Describe("Observability Monitoring E2E Test Suite", func() {
 		Expect(verifyPetchPrometheusRules).NotTo(BeEmpty(), "Failed to fetch PrometheusRule: expected non-empty response")
 	})
 
-	It("Test : Verify default Watchdog alert is present", Label("LEVEL1", "monitoring", "E2E"), func() {
-
+	It("[QASE-6825] Test : Verify default Watchdog alert is present", Label("LEVEL1", "monitoring", "E2E"), func() {
+		testCaseID = 6825
 		By("1) Create a container to access curl")
 		creatContainer := []string{"kubectl", "run", "test", "--image=ranchertest/mytestcontainer", "-n", "default"}
 		_, err := kubectl.Command(clientWithSession, nil, "local", creatContainer, "")
@@ -109,8 +109,8 @@ var _ = Describe("Observability Monitoring E2E Test Suite", func() {
 		}()
 	})
 
-	It("Test : Verify status of rancher-monitoring pods using kubectl", Label("LEVEL1", "monitoring", "E2E"), func() {
-
+	It("[QASE-6826] Test : Verify status of rancher-monitoring pods using kubectl", Label("LEVEL1", "monitoring", "E2E"), func() {
+		testCaseID = 6826
 		By("0) Fetch all the pods belongs to rancher-monitoring")
 		fetchPods := []string{"kubectl", "get", "pods", "-n", "cattle-monitoring-system", "--no-headers"}
 		rancherMonitoringPods, err := kubectl.Command(clientWithSession, nil, "local", fetchPods, "")
@@ -133,8 +133,8 @@ var _ = Describe("Observability Monitoring E2E Test Suite", func() {
 		}
 	})
 
-	It("Test : Verify status of rancher-monitoring Deployments using kubectl", Label("LEVEL1", "monitoring", "E2E"), func() {
-
+	It("[QASE-6827] Test : Verify status of rancher-monitoring Deployments using kubectl", Label("LEVEL1", "monitoring", "E2E"), func() {
+		testCaseID = 6827
 		By("0) Fetch all the deployments belonging to rancher-monitoring")
 		fetchDeployments := []string{"kubectl", "get", "deployments", "-n", "cattle-monitoring-system", "--no-headers"}
 		rancherMonitoringDeployments, err := kubectl.Command(clientWithSession, nil, "local", fetchDeployments, "")
@@ -163,8 +163,8 @@ var _ = Describe("Observability Monitoring E2E Test Suite", func() {
 		}
 	})
 
-	It("Test : Verify status of rancher-monitoring DaemonSets using kubectl", Label("LEVEL1", "monitoring", "E2E"), func() {
-
+	It("[QASE-6830] Test : Verify status of rancher-monitoring DaemonSets using kubectl", Label("LEVEL1", "monitoring", "E2E"), func() {
+		testCaseID = 6830
 		By("0) Fetch all the daemon sets belongs to rancher-monitoring")
 		fetchPods := []string{"kubectl", "get", "daemonsets", "-n", "cattle-monitoring-system", "--no-headers"}
 		rancherMonitoringDaemonSets, err := kubectl.Command(clientWithSession, nil, "local", fetchPods, "")
@@ -191,8 +191,8 @@ var _ = Describe("Observability Monitoring E2E Test Suite", func() {
 		}
 	})
 
-	It("Test: Verify newly created Prometheus rule alert is present", Label("LEVEL1", "monitoring", "E2E", "PromFed"), func() {
-
+	It("[QASE-6829] Test: Verify newly created Prometheus rule alert is present", Label("LEVEL1", "monitoring", "E2E", "PromFed"), func() {
+		testCaseID = 6829
 		By("1) Creating a container for curl access")
 		createContainerCommand := []string{"kubectl", "run", "curl-container", "--image=ranchertest/mytestcontainer", "-n", "default"}
 		_, err := kubectl.Command(clientWithSession, nil, "local", createContainerCommand, "")

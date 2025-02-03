@@ -43,7 +43,8 @@ var _ = Describe("Observability Installation Test Suite", func() {
 		Expect(err).NotTo(HaveOccurred())
 	})
 
-	It("Install monitoring chart", Label("LEVEL0", "monitoring", "installation"), func() {
+	It("[QASE-3909] Install monitoring chart", Label("LEVEL0", "monitoring", "installation"), func() {
+		testCaseID = 3909
 		By("Checking if the monitoring chart is already installed")
 		initialMonitoringChart, err := extencharts.GetChartStatus(clientWithSession, project.ClusterID, charts.RancherMonitoringNamespace, charts.RancherMonitoringName)
 		Expect(err).NotTo(HaveOccurred())
@@ -121,7 +122,8 @@ var _ = Describe("Observability Installation Test Suite", func() {
 		}
 	})
 
-	It("Install Alerting chart", Label("LEVEL0", "alerting", "installation"), func() {
+	It("[QASE-3912] Install Alerting chart", Label("LEVEL0", "alerting", "installation"), func() {
+		testCaseID = 3912
 		alertingChart, err := extencharts.GetChartStatus(clientWithSession, project.ClusterID, charts.RancherAlertingNamespace, charts.RancherAlertingName)
 		Expect(err).NotTo(HaveOccurred())
 
@@ -178,7 +180,8 @@ var _ = Describe("Observability Installation Test Suite", func() {
 		}
 	})
 
-	It("Install Logging chart", Label("LEVEL0", "logging", "installation"), func() {
+	It("[QASE-3484] Install Logging chart", Label("LEVEL0", "logging", "installation"), func() {
+		testCaseID = 3484
 		loggingChart, err := extencharts.GetChartStatus(clientWithSession, project.ClusterID, charts.RancherLoggingNamespace, charts.RancherLoggingName)
 		Expect(err).NotTo(HaveOccurred())
 
@@ -248,8 +251,8 @@ var _ = Describe("Observability Installation Test Suite", func() {
 		}
 	})
 
-	It("Install Syslog resources to capture rancher logging logs", Label("LEVEL0", "Syslog", "installation"), func() {
-
+	It("[QASE-3486] Install Syslog resources to capture rancher logging logs", Label("LEVEL0", "Syslog", "installation"), func() {
+		testCaseID = 3486
 		By("1) Deploying syslog deployment/service/config map resources")
 		deploySyslogError := utils.DeploySyslogResources(clientWithSession, syslogResourceYamlPath)
 		if deploySyslogError != nil {
@@ -260,8 +263,8 @@ var _ = Describe("Observability Installation Test Suite", func() {
 
 	})
 
-	It("Install Prometheus Federator chart", Label("LEVEL0", "promfed", "installation"), func() {
-
+	It("[QASE-5582] Install Prometheus Federator chart", Label("LEVEL0", "promfed", "installation"), func() {
+		testCaseID = 5582
 		By("1) verify if prometheus federator chart is already installed")
 		prometheusFederatorChart, err := extencharts.GetChartStatus(clientWithSession, project.ClusterID, charts.PrometheusFederatorNamespace, charts.PrometheusFederatorName)
 		Expect(err).NotTo(HaveOccurred())

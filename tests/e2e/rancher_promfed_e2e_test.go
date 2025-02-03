@@ -26,7 +26,8 @@ var _ = Describe("Observability Prometheus Federator e2e Test Suite", func() {
 		Expect(err).NotTo(HaveOccurred())
 	})
 
-	It("Test : Verify status of rancher prometheus-federator (deployment + pod) using kubectl", Label("LEVEL0", "promfed", "E2E"), func() {
+	It("[QASE-6839] Test : Verify status of rancher prometheus-federator (deployment + pod) using kubectl", Label("LEVEL0", "promfed", "E2E"), func() {
+		testCaseID = 6839
 		By("Step 1) Checking the 'prometheus-federator' deployment in cattle-monitoring-system")
 		fetchDeployment := []string{
 			"kubectl", "get", "deploy", "prometheus-federator", "-n", "cattle-monitoring-system", "--no-headers",
@@ -48,7 +49,8 @@ var _ = Describe("Observability Prometheus Federator e2e Test Suite", func() {
 		Expect(podsOutput).To(MatchRegexp("prometheus.*1/1.*Running"), fmt.Sprintf("Expected 'prometheus-federator' pod to be running, but got: %s", podsOutput))
 	})
 
-	It("Test : Project Monitoring for test-promfed-monitoring", Label("LEVEL0", "promfed", "E2E", "Fedtest"), func() {
+	It("[QASE-6840] Test : Project Monitoring for test-promfed-monitoring", Label("LEVEL0", "promfed", "E2E", "Fedtest"), func() {
+		testCaseID = 6840
 		e2e.Logf("Creating new project for Project Monitoring")
 		projectConfig := &management.Project{
 			ClusterID: cluster.ID,
