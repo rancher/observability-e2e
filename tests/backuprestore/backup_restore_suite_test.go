@@ -17,6 +17,7 @@ package backuprestore
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -42,7 +43,8 @@ var (
 	registrySetting     *management.Setting
 	err                 error
 	s3Client            *resources.S3Client
-	backupRestoreConfig *localConfig.BackupRestoreConfig
+	BackupRestoreConfig *localConfig.BackupRestoreConfig
+	skipS3Tests         bool
 )
 
 func FailWithReport(message string, callerSkip ...int) {
@@ -69,7 +71,6 @@ func TestE2E(t *testing.T) {
 // This setup will run once for the entire test suite
 var _ = BeforeSuite(func() {
 	project = nil
-
 	testSession := session.NewSession()
 	sess = testSession
 	client, err = rancher.NewClient("", testSession)
@@ -115,30 +116,35 @@ var _ = BeforeSuite(func() {
 	}
 
 	// Load configuration from the default YAML file
-	backupRestoreConfig = &localConfig.BackupRestoreConfig{}
-	err = utils.LoadConfigIntoStruct(charts.BackupRestoreConfigurationFileKey, backupRestoreConfig)
+	BackupRestoreConfig = &localConfig.BackupRestoreConfig{}
+	filePath, _ := filepath.Abs(charts.BackupRestoreConfigurationFileKey)
+	err = utils.LoadConfigIntoStruct(filePath, BackupRestoreConfig)
 	Expect(err).NotTo(HaveOccurred())
 	// Giving a dynamic and valid bucket name
-	backupRestoreConfig.S3BucketName = fmt.Sprintf("backup-restore-automation-test-%d", time.Now().Unix())
+	BackupRestoreConfig.S3BucketName = fmt.Sprintf("backup-restore-automation-test-%d", time.Now().Unix())
 
 	// Initialize the S3 client
-	s3Client, err = resources.NewS3Client(backupRestoreConfig)
-	Expect(err).NotTo(HaveOccurred())
+	if BackupRestoreConfig.AccessKey != "" {
+		s3Client, err = resources.NewS3Client(BackupRestoreConfig)
+		Expect(err).NotTo(HaveOccurred())
 
-	// Create the S3 bucket from the config
-	err = s3Client.CreateBucket(backupRestoreConfig.S3BucketName, backupRestoreConfig.S3Region)
-	Expect(err).NotTo(HaveOccurred())
-	e2e.Logf("S3 bucket '%s' created successfully", backupRestoreConfig.S3BucketName)
-
+		// Create the S3 bucket from the config
+		err = s3Client.CreateBucket(BackupRestoreConfig.S3BucketName, BackupRestoreConfig.S3Region)
+		Expect(err).NotTo(HaveOccurred())
+		e2e.Logf("S3 bucket '%s' created successfully", BackupRestoreConfig.S3BucketName)
+	} else {
+		skipS3Tests = true
+	}
 })
 
 // This teardown will run once after all the tests in the suite are done
 var _ = AfterSuite(func() {
-	// Delete the S3 bucket
-	err := s3Client.DeleteBucket(backupRestoreConfig.S3BucketName)
-	Expect(err).NotTo(HaveOccurred())
-	e2e.Logf("S3 bucket '%s' deleted successfully", backupRestoreConfig.S3BucketName)
-
+	if BackupRestoreConfig.AccessKey != "" {
+		// Delete the S3 bucket
+		err := s3Client.DeleteBucket(BackupRestoreConfig.S3BucketName)
+		Expect(err).NotTo(HaveOccurred())
+		e2e.Logf("S3 bucket '%s' deleted successfully", BackupRestoreConfig.S3BucketName)
+	}
 	// Clean up session
 	sess.Cleanup()
 })
