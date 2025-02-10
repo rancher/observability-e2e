@@ -49,7 +49,7 @@ var _ = Describe("Observability Installation Test Suite", func() {
 		initialMonitoringChart, err := extencharts.GetChartStatus(clientWithSession, project.ClusterID, charts.RancherMonitoringNamespace, charts.RancherMonitoringName)
 		Expect(err).NotTo(HaveOccurred())
 		if initialMonitoringChart.IsAlreadyInstalled {
-			e2e.Logf("Monitoring chart is already installated in project: %v", exampleAppProjectName)
+			e2e.Logf("Monitoring chart is already installed in project: %v", exampleAppProjectName)
 		}
 
 		if !initialMonitoringChart.IsAlreadyInstalled {

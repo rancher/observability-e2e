@@ -63,4 +63,3 @@ TEST_LABEL_FILTER=backup-restore /usr/local/go/bin/go test -timeout 60m github.c
 - **Test timeout issues**: Increase the `-timeout` value if needed.
 
 For further support, refer to the [Rancher Observability E2E documentation](https://github.com/rancher/observability-e2e).
-

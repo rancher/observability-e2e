@@ -1,0 +1,45 @@
+repos:
+  # Standard pre-commit hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: detect-aws-credentials
+      - id: detect-private-key
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+
+  # Spell checker for Go comments, docs, and YAML files
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.4.1
+    hooks:
+      - id: codespell
+        args: ["--ignore-words-list=IST"]
+        files: \.(go|md|yaml|yml)$  # Checks only Go, Markdown, and YAML files
+
+  # GolangCI-Lint for Go linting and static analysis
+  - repo: https://github.com/golangci/golangci-lint
+    rev: v1.63.4
+    hooks:
+      - id: golangci-lint
+
+  # Go formatters and import fixers
+  - repo: https://github.com/dnephin/pre-commit-golang
+    rev: v0.5.1
+    hooks:
+      - id: go-fmt      # Formats Go code
+      - id: go-imports  # Formats and fixes Go import statements
+        files: ^tests/.*\.go$
+      - id: go-vet
+        entry: go vet ./tests/...
+        language: system
+        pass_filenames: false  # Ensures it runs on the entire tests directory
+
+  # Local hook for go mod tidy
+  - repo: local
+    hooks:
+      - id: go-mod-tidy
+        name: go mod tidy
+        language: system
+        entry: go mod tidy
+        files: ^go\.mod$|^go\.sum$
+        stages: [manual]
