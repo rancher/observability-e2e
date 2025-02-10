@@ -1,10 +1,11 @@
-# config/backupRestoreInputConfig.yaml
+  # config/backupRestoreInputConfig.yaml
 
 s3BucketName: "backup-restore-automation-test"      
 s3FolderName: "rancher-backups/"              
-s3Region: "S3_REGION"                         
-s3Endpoint: "<S3_ENDPOINT>"                   
-volumeName: ""                                
+s3Region: us-west-2
+s3Endpoint: s3.us-west-2.amazonaws.com
+volumeName: ""
+storageClassName: "local-storage"                              
 credentialSecretName: "<CREDENTIAL_SECRET_NAME>"      
 credentialSecretNamespace: "default"          
 tlsSkipVerify: true                                     # Whether to skip TLS verification
@@ -14,6 +15,7 @@ retentionCount: 10                                      # Number of backups to r
 prune: true                                             # Whether to prune old backups
 resourceSetName: "rancher-resource-set"       
 encryptionConfigSecretName: ""                
-schedule: ""                                  
-accessKey: "<ACCESS_KEY>"                    
-secretKey: "<SECRET_KEY>"
+schedule: ""
+accessKey: ""
+secretKey: ""
+
