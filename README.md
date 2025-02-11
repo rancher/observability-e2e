@@ -117,6 +117,6 @@ If you're using **VS Code**, you can also run the tests directly within the edit
 2. Click on **"Run Test"** next to the `TestE2E` function (as indicated in the attached screenshot).
 3. Monitor the test execution status in the **Test** panel within VS Code.
 
-Below is the ScreenShot Attched:
+Below is the ScreenShot Attached:
 
 ![VS Code Test Execution](./VScode_Execution.png)
