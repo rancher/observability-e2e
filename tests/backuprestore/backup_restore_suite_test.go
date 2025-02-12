@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -30,6 +31,8 @@ import (
 	"github.com/rancher/observability-e2e/tests/helper/utils"
 	rancher "github.com/rancher/shepherd/clients/rancher"
 	management "github.com/rancher/shepherd/clients/rancher/generated/management/v3"
+	"github.com/rancher/shepherd/extensions/cloudcredentials"
+	"github.com/rancher/shepherd/extensions/cloudcredentials/aws"
 	clusters "github.com/rancher/shepherd/extensions/clusters"
 	session "github.com/rancher/shepherd/pkg/session"
 	e2e "k8s.io/kubernetes/test/e2e/framework"
@@ -45,6 +48,11 @@ var (
 	s3Client            *resources.S3Client
 	BackupRestoreConfig *localConfig.BackupRestoreConfig
 	skipS3Tests         bool
+	CloudCredentialName string
+)
+
+const (
+	providerName = "aws"
 )
 
 func FailWithReport(message string, callerSkip ...int) {
@@ -102,6 +110,12 @@ var _ = BeforeSuite(func() {
 			break
 		}
 	}
+
+	cloudCredentialConfig := cloudcredentials.LoadCloudCredential(providerName)
+	cloudCredential, err := aws.CreateAWSCloudCredentials(client, cloudCredentialConfig)
+	Expect(err).NotTo(HaveOccurred())
+	CloudCredentialName = strings.Replace(cloudCredential.ID, "/", ":", 1)
+	Expect(CloudCredentialName).To(ContainSubstring("cc"))
 
 	// Check if project was found
 	if project == nil {

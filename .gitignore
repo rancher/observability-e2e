@@ -3,6 +3,6 @@
 .vscode*
 .env
 .idea/
-tests/helper/yamls/inputBackupRestoreConfig.yaml
+tests/helper/yamls/input*.yaml
 cattle-config.yaml
 cattle-config.yml
