@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	localConfig "github.com/rancher/observability-e2e/tests/helper/config"
@@ -17,9 +18,7 @@ type S3Client struct {
 
 // NewS3Client creates an AWS S3 client from BackupRestoreConfig
 func NewS3Client(config *localConfig.BackupRestoreConfig) (*S3Client, error) {
-	// Load the config if not provided
 	if config == nil {
-		// Load default config
 		config = &localConfig.BackupRestoreConfig{}
 		err := utils.LoadConfigIntoStruct("BackupRestoreConfigurationFileKey", config)
 		if err != nil {
@@ -27,7 +26,6 @@ func NewS3Client(config *localConfig.BackupRestoreConfig) (*S3Client, error) {
 		}
 	}
 
-	// Create a new AWS session using the region from the config
 	sess, err := session.NewSession(&aws.Config{
 		Region: aws.String(config.S3Region),
 	})
@@ -35,14 +33,29 @@ func NewS3Client(config *localConfig.BackupRestoreConfig) (*S3Client, error) {
 		return nil, fmt.Errorf("failed to create AWS session: %v", err)
 	}
 
-	// Create and return the S3 client
 	client := s3.New(sess)
 	return &S3Client{client: client}, nil
 }
 
-// CreateBucket creates the S3 bucket with the specified name and region
+// FileExistsInBucket checks if a file exists in the given S3 bucket
+func (s *S3Client) FileExistsInBucket(bucketName, fileName string) (bool, error) {
+	_, err := s.client.HeadObject(&s3.HeadObjectInput{
+		Bucket: aws.String(bucketName),
+		Key:    aws.String(fileName),
+	})
+
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok && aerr.Code() == s3.ErrCodeNoSuchKey {
+			return false, nil // File does not exist
+		}
+		return false, fmt.Errorf("error checking if file exists: %v", err)
+	}
+
+	return true, nil // File exists
+}
+
+// CreateBucket creates the S3 bucket
 func (s *S3Client) CreateBucket(bucketName string, region string) error {
-	// Create the S3 bucket
 	_, err := s.client.CreateBucket(&s3.CreateBucketInput{
 		Bucket: aws.String(bucketName),
 		CreateBucketConfiguration: &s3.CreateBucketConfiguration{
@@ -92,7 +105,6 @@ func (s *S3Client) DeleteAllObjects(bucketName string) error {
 
 // DeleteBucket deletes the S3 bucket
 func (s *S3Client) DeleteBucket(bucketName string) error {
-	// Delete all objects inside the bucket
 	if err := s.DeleteAllObjects(bucketName); err != nil {
 		return err
 	}
