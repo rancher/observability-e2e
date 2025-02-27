@@ -61,7 +61,6 @@ permissions:
 jobs:
   setup:
     runs-on: ubuntu-latest
-
     outputs:
       INSTANCE_ID: ${{ steps.provision_ec2.outputs.INSTANCE_ID }}
       PUBLIC_IP: ${{ steps.get_ip.outputs.PUBLIC_IP }}
@@ -202,6 +201,7 @@ jobs:
           EOF
 
   pre-qase:
+    needs: [setup]
     runs-on: ubuntu-latest
     env:
       QASE_API_TOKEN: ${{ secrets.QASE_API_TOKEN }}
@@ -232,10 +232,10 @@ jobs:
               export QASE_RUN_DESCRIPTION="${QASE_DESC}"
 
               # Use full rancher version
-              QASE_RUN_NAME=$(echo "Observability E2E Rancher=${{ inputs.rancher_version }}, RKE2 Version=${{ inputs.upstream_cluster_version }}" | grep -P '[0-9]+\.[0-9]+\.[0-9]+(-[a-z]+[0-9]+)?' || true)
+              QASE_RUN_NAME=$(echo "Automation Observability E2E Rancher=${{ inputs.rancher_version }}, RKE2 Version=${{ inputs.upstream_cluster_version }}" | grep -P '[0-9]+\.[0-9]+\.[0-9]+(-[a-z]+[0-9]+)?' || true)
               # Or workflow name if the full rancher version is not found
               if [ -z "$QASE_RUN_NAME" ]; then
-                QASE_RUN_NAME="Observability E2E Rancher=${{ inputs.rancher_version }}, RKE2 Version=${{ inputs.upstream_cluster_version }} | ${{ github.workflow }}"
+                QASE_RUN_NAME="Automation Observability E2E Rancher=${{ inputs.rancher_version }}, RKE2 Version=${{ inputs.upstream_cluster_version }} | ${{ github.workflow }}"
               fi
 
               # Create a Qase run, get its ID
