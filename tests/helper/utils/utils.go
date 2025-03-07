@@ -179,3 +179,13 @@ func ConvertToStruct(src interface{}, target interface{}) error {
 
 	return nil
 }
+
+// GetEnvOrDefault retrieves the value of an environment variable
+// or returns a default value if the variable is not set.
+func GetEnvOrDefault(key, defaultValue string) string {
+	value, exists := os.LookupEnv(key)
+	if !exists {
+		return defaultValue
+	}
+	return value
+}
