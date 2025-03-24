@@ -1,0 +1,34 @@
+machineconfig:
+  data:
+    instanceType: "t3a.medium"
+    metadata:
+      namespace: "fleet-default"
+    region: "us-east-2"
+    securityGroup: ["rancher-nodes"]
+    subnetId: ""
+    vpcId: ""
+    zone: "a"
+    type: "rke-machine-config.cattle.io.amazonec2config"
+
+clusterspec:
+  metadata:
+    namespace: "fleet-default"
+    name: "okhatavk-rke2-cluster"
+  spec:
+    rkeConfig:
+      chartValues:
+        rke2-calico: {}
+      upgradeStrategy:
+        controlPlaneConcurrency: "1"
+        workerConcurrency: "1"
+      machinePools:
+        - name: "okhatavk-rke2-cluster-pool"
+          etcdRole: true
+          controlPlaneRole: true
+          workerRole: true
+          quantity: 1
+          machineConfigRef:
+            kind: "Amazonec2Config"
+            name: ""  # This will be dynamically set from machine config
+    kubernetesVersion: ""
+    cloudCredentialSecretName: "" # This will be dynamically set from cloudcredentials

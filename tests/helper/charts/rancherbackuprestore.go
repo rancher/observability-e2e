@@ -2,6 +2,7 @@ package charts
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -9,10 +10,13 @@ import (
 	localConfig "github.com/rancher/observability-e2e/tests/helper/config"
 	"github.com/rancher/observability-e2e/tests/helper/utils"
 	catalogv1 "github.com/rancher/rancher/pkg/apis/catalog.cattle.io/v1"
+	"github.com/rancher/rancher/tests/v2/actions/projects"
 	"github.com/rancher/rancher/tests/v2/actions/secrets"
 	"github.com/rancher/shepherd/clients/rancher"
 	"github.com/rancher/shepherd/clients/rancher/catalog"
+	management "github.com/rancher/shepherd/clients/rancher/generated/management/v3"
 	v1 "github.com/rancher/shepherd/clients/rancher/v1"
+	"github.com/rancher/shepherd/extensions/users"
 	"github.com/rancher/shepherd/pkg/api/steve/catalog/types"
 	namegen "github.com/rancher/shepherd/pkg/namegenerator"
 	"github.com/rancher/shepherd/pkg/wait"
@@ -29,11 +33,20 @@ const (
 	BackupRestoreConfigurationFileKey = "../helper/yamls/inputBackupRestoreConfig.yaml"
 	localStorageClass                 = "../helper/yamls/localStorageClass.yaml"
 	backupSteveType                   = "resources.cattle.io.backup"
-	restoreSteveType                  = "resources.cattle.io.restore"
+	RestoreSteveType                  = "resources.cattle.io.restore"
+	resourceCount                     = 2
+	cniCalico                         = "calico"
 )
 
 var (
 	SecretName = namegen.AppendRandomString("bro-secret")
+	rules      = []management.PolicyRule{
+		{
+			APIGroups: []string{"management.cattle.io"},
+			Resources: []string{"projects"},
+			Verbs:     []string{"backupRole"},
+		},
+	}
 )
 
 type BackupOptions struct {
@@ -41,6 +54,13 @@ type BackupOptions struct {
 	ResourceSetName            string
 	RetentionCount             int64
 	EncryptionConfigSecretName string
+}
+
+type ProvisioningConfig struct {
+	Providers              []string `json:"providers,omitempty" yaml:"providers,omitempty"`
+	NodeProviders          []string `json:"nodeProviders,omitempty" yaml:"nodeProviders,omitempty"`
+	RKE2KubernetesVersions []string `json:"rke2KubernetesVersion,omitempty" yaml:"rke2KubernetesVersion,omitempty"`
+	CNIs                   []string `json:"cni,omitempty" yaml:"cni,omitempty"`
 }
 
 // InstallRancherBackupRestoreChart installs the Rancher backup/restore chart with optional storage configuration.
@@ -229,13 +249,16 @@ func CreateStorageResources(storageType string, client *rancher.Client, backupRe
 
 // Function to handle the delete of resources based on StorageType
 func DeleteStorageResources(storageType string, client *rancher.Client, backupRestoreConfig *localConfig.BackupRestoreConfig) error {
+	// Skip deletion if storageType is "s3" as this is handled in test suite level
+	if storageType == "s3" {
+		return nil
+	}
 	switch storageType {
 	case "storageClass":
 		err := utils.DeleteYamlResource(client, localStorageClass, RancherBackupRestoreNamespace)
 		if err != nil {
 			return fmt.Errorf("failed to delete the storage class and pv: %v", err)
 		}
-
 	default:
 		return fmt.Errorf("invalid storage type specified: %s", storageType)
 	}
@@ -309,4 +332,114 @@ func CreateRancherBackupAndVerifyCompleted(client *rancher.Client, backupOptions
 		return nil, "", err
 	}
 	return completedBackup, backupFileName, err
+}
+
+func CreateRancherResources(client *rancher.Client, clusterID string, context string) ([]*management.User, []*management.Project, []*management.RoleTemplate, error) {
+	userList := []*management.User{}
+	projList := []*management.Project{}
+	roleList := []*management.RoleTemplate{}
+
+	for i := 0; i < resourceCount; i++ {
+		u, err := users.CreateUserWithRole(client, users.UserConfig(), "user")
+		if err != nil {
+			return userList, projList, roleList, err
+		}
+		userList = append(userList, u)
+
+		p, _, err := projects.CreateProjectAndNamespace(client, clusterID)
+		if err != nil {
+			return userList, projList, roleList, err
+		}
+		projList = append(projList, p)
+
+		rt, err := client.Management.RoleTemplate.Create(
+			&management.RoleTemplate{
+				Context: context,
+				Name:    namegen.AppendRandomString("bro-role"),
+				Rules:   rules,
+			})
+		if err != nil {
+			return userList, projList, roleList, err
+		}
+		roleList = append(roleList, rt)
+	}
+
+	return userList, projList, roleList, nil
+}
+
+func SetRestoreObject(backupName string, prune bool) bv1.Restore {
+	restore := bv1.Restore{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: "restore-",
+		},
+		Spec: bv1.RestoreSpec{
+			BackupFilename: backupName,
+			Prune:          &prune,
+		},
+	}
+	return restore
+}
+
+func VerifyRestoreCompleted(client *rancher.Client, steveType string, restore *v1.SteveAPIObject) (bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
+	defer cancel()
+
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return false, ctx.Err() // Timeout reached
+		case <-ticker.C:
+			restoreObj, err := client.Steve.SteveType(steveType).ByID(restore.ID)
+			if err != nil {
+				continue // Retry if there's an error
+			}
+
+			restoreStatus := &bv1.RestoreStatus{}
+			if err := v1.ConvertToK8sType(restoreObj.Status, restoreStatus); err != nil {
+				return false, err // Conversion error, stop polling
+			}
+
+			for _, condition := range restoreStatus.Conditions {
+				if condition.Type == "Ready" && condition.Status == corev1.ConditionTrue {
+					e2e.Logf("Restore is completed!")
+					return true, nil
+				}
+			}
+		}
+	}
+}
+
+func VerifyRancherResources(client *rancher.Client, curUserList []*management.User, curProjList []*management.Project, curRoleList []*management.RoleTemplate) error {
+	var errs []error
+
+	e2e.Logf("Verifying user resources...")
+	for _, user := range curUserList {
+		userID, err := users.GetUserIDByName(client, user.Name)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("user %s: %w", user.Name, err))
+		} else if userID == "" {
+			errs = append(errs, fmt.Errorf("user %s not found", user.Name))
+		}
+	}
+
+	e2e.Logf("Verifying project resources...")
+	for _, proj := range curProjList {
+		_, err := client.Management.Project.ByID(proj.ID)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("project %s: %w", proj.ID, err))
+		}
+	}
+
+	e2e.Logf("Verifying role resources...")
+	for _, role := range curRoleList {
+		_, err := client.Management.RoleTemplate.ByID(role.ID)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("role %s: %w", role.ID, err))
+		}
+	}
+
+	return errors.Join(errs...)
 }
