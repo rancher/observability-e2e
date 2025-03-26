@@ -64,7 +64,7 @@ var _ = Describe("Parameterized Backup and Restore Chart Installation Tests", fu
 			}
 
 			By(fmt.Sprintf("Configuring/Creating required resources for the storage type: %s testing", params.StorageType))
-			err = charts.CreateStorageResources(params.StorageType, clientWithSession, BackupRestoreConfig)
+			secretName, err := charts.CreateStorageResources(params.StorageType, clientWithSession, BackupRestoreConfig)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Get the latest version of the backup restore chart
@@ -83,7 +83,7 @@ var _ = Describe("Parameterized Backup and Restore Chart Installation Tests", fu
 					VolumeName:                BackupRestoreConfig.VolumeName,
 					StorageClassName:          BackupRestoreConfig.StorageClassName,
 					BucketName:                BackupRestoreConfig.S3BucketName,
-					CredentialSecretName:      charts.SecretName,
+					CredentialSecretName:      secretName,
 					CredentialSecretNamespace: BackupRestoreConfig.CredentialSecretNamespace,
 					Enabled:                   true,
 					Endpoint:                  BackupRestoreConfig.S3Endpoint,

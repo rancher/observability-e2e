@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	bv1 "github.com/rancher/backup-restore-operator/pkg/apis/resources.cattle.io/v1"
@@ -32,6 +33,7 @@ const (
 	RancherBackupRestoreCRDName       = "rancher-backup-crd"
 	BackupRestoreConfigurationFileKey = "../helper/yamls/inputBackupRestoreConfig.yaml"
 	localStorageClass                 = "../helper/yamls/localStorageClass.yaml"
+	EncryptionConfigFilePath          = "../helper/yamls/encrptionConfig.yaml"
 	backupSteveType                   = "resources.cattle.io.backup"
 	RestoreSteveType                  = "resources.cattle.io.restore"
 	resourceCount                     = 2
@@ -39,8 +41,7 @@ const (
 )
 
 var (
-	SecretName = namegen.AppendRandomString("bro-secret")
-	rules      = []management.PolicyRule{
+	rules = []management.PolicyRule{
 		{
 			APIGroups: []string{"management.cattle.io"},
 			Resources: []string{"projects"},
@@ -133,6 +134,7 @@ func InstallRancherBackupRestoreChart(client *rancher.Client, installOpts *Insta
 // CreateOpaqueS3Secret creates an opaque Kubernetes secret for S3 credentials.
 func CreateOpaqueS3Secret(steveClient *v1.Client, backupRestoreConfig *localConfig.BackupRestoreConfig) (string, error) {
 	// Define the secret template with S3 access and secret keys.
+	var SecretName = namegen.AppendRandomString("bro-secret")
 	secretTemplate := secrets.NewSecretTemplate(
 		SecretName,
 		backupRestoreConfig.CredentialSecretNamespace,
@@ -146,6 +148,35 @@ func CreateOpaqueS3Secret(steveClient *v1.Client, backupRestoreConfig *localConf
 	createdSecret, err := steveClient.SteveType(secrets.SecretSteveType).Create(secretTemplate)
 
 	return createdSecret.Name, err
+}
+
+// CreateEncryptionConfigSecret creates an opaque Kubernetes secret for encryption configuration.
+func CreateEncryptionConfigSecret(steveClient *v1.Client, yamlPath, secretName, namespace string) (string, error) {
+	// Read the encryption config file
+	data, err := os.ReadFile(yamlPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read encryption config file %s: %w", yamlPath, err)
+	}
+
+	// Define the secret template
+	secretTemplate := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      secretName,
+			Namespace: namespace,
+		},
+		Data: map[string][]byte{
+			"encryption-provider-config.yaml": data,
+		},
+		Type: corev1.SecretTypeOpaque,
+	}
+
+	// Create the secret using the Steve client
+	createdSecret, err := steveClient.SteveType("secret").Create(secretTemplate)
+	if err != nil {
+		return "", fmt.Errorf("failed to create secret %s in namespace %s: %w", secretName, namespace, err)
+	}
+
+	return createdSecret.Name, nil
 }
 
 // newBackupChartInstallAction prepares the chart installation action with storage and payload options.
@@ -225,26 +256,26 @@ func UninstallBackupRestoreChart(client *rancher.Client, clusterID string, names
 	return nil
 }
 
-// Function to handle the creation of resources based on StorageType
-func CreateStorageResources(storageType string, client *rancher.Client, backupRestoreConfig *localConfig.BackupRestoreConfig) error {
+// CreateStorageResources handles the creation of resources based on StorageType
+func CreateStorageResources(storageType string, client *rancher.Client, backupRestoreConfig *localConfig.BackupRestoreConfig) (string, error) {
 	switch storageType {
 	case "s3":
-		// Instead of By, we just return an error message
-		_, err := CreateOpaqueS3Secret(client.Steve, backupRestoreConfig)
+		secretName, err := CreateOpaqueS3Secret(client.Steve, backupRestoreConfig)
 		if err != nil {
-			return fmt.Errorf("failed to create opaque secret with S3 credentials: %v", err)
+			return "", fmt.Errorf("failed to create opaque secret with S3 credentials: %v", err)
 		}
+		return secretName, nil
 
 	case "storageClass":
 		err := utils.DeployYamlResource(client, localStorageClass, RancherBackupRestoreNamespace)
 		if err != nil {
-			return fmt.Errorf("failed to create the storage class and pv: %v", err)
+			return "", fmt.Errorf("failed to create the storage class and pv: %v", err)
 		}
+		return "storage-class-resource", nil // Returning a placeholder name
 
 	default:
-		return fmt.Errorf("invalid storage type specified: %s", storageType)
+		return "", fmt.Errorf("invalid storage type specified: %s", storageType)
 	}
-	return nil
 }
 
 // Function to handle the delete of resources based on StorageType
@@ -367,14 +398,15 @@ func CreateRancherResources(client *rancher.Client, clusterID string, context st
 	return userList, projList, roleList, nil
 }
 
-func SetRestoreObject(backupName string, prune bool) bv1.Restore {
+func SetRestoreObject(backupName string, prune bool, encryptionConfigSecretName string) bv1.Restore {
 	restore := bv1.Restore{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "restore-",
 		},
 		Spec: bv1.RestoreSpec{
-			BackupFilename: backupName,
-			Prune:          &prune,
+			BackupFilename:             backupName,
+			Prune:                      &prune,
+			EncryptionConfigSecretName: encryptionConfigSecretName,
 		},
 	}
 	return restore

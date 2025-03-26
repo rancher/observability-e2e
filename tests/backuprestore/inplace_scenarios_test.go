@@ -50,7 +50,6 @@ var _ = DescribeTable("Test: Rancher inplace backup and restore test.",
 			clientWithSession *rancher.Client
 			err               error
 		)
-
 		By("Creating a client session")
 		clientWithSession, err = client.WithSession(sess)
 		Expect(err).NotTo(HaveOccurred())
@@ -67,7 +66,7 @@ var _ = DescribeTable("Test: Rancher inplace backup and restore test.",
 		}
 
 		By(fmt.Sprintf("Configuring/Creating required resources for the storage type: %s testing", params.StorageType))
-		err = charts.CreateStorageResources(params.StorageType, clientWithSession, BackupRestoreConfig)
+		secretName, err := charts.CreateStorageResources(params.StorageType, clientWithSession, BackupRestoreConfig)
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Creating two users, projects, and role templates...")
@@ -106,7 +105,7 @@ var _ = DescribeTable("Test: Rancher inplace backup and restore test.",
 				VolumeName:                BackupRestoreConfig.VolumeName,
 				StorageClassName:          BackupRestoreConfig.StorageClassName,
 				BucketName:                BackupRestoreConfig.S3BucketName,
-				CredentialSecretName:      charts.SecretName,
+				CredentialSecretName:      secretName,
 				CredentialSecretNamespace: BackupRestoreConfig.CredentialSecretNamespace,
 				Enabled:                   true,
 				Endpoint:                  BackupRestoreConfig.S3Endpoint,
@@ -132,6 +131,15 @@ var _ = DescribeTable("Test: Rancher inplace backup and restore test.",
 				e2e.Failf("Timeout waiting for WatchAndWaitDeployments to complete")
 			}
 		}
+		By("Check if the backup needs to be encrypted, if yes create the encryptionconfig secret")
+		if params.BackupOptions.EncryptionConfigSecretName != "" {
+			secretName, err = charts.CreateEncryptionConfigSecret(client.Steve, charts.EncryptionConfigFilePath,
+				params.BackupOptions.EncryptionConfigSecretName, charts.RancherBackupRestoreNamespace)
+			if err != nil {
+				e2e.Logf("Error applying encryption config: %v", err)
+			}
+			e2e.Logf("Successfully created encryption config secret: %s", secretName)
+		}
 
 		_, filename, err := charts.CreateRancherBackupAndVerifyCompleted(clientWithSession, params.BackupOptions)
 		Expect(err).NotTo(HaveOccurred())
@@ -149,7 +157,7 @@ var _ = DescribeTable("Test: Rancher inplace backup and restore test.",
 		Expect(err).NotTo(HaveOccurred())
 
 		By(fmt.Sprintf("Creating a restore using backup file: %v", filename))
-		restoreTemplate := bv1.NewRestore("", "", charts.SetRestoreObject(params.BackupOptions.Name, params.Prune))
+		restoreTemplate := bv1.NewRestore("", "", charts.SetRestoreObject(params.BackupOptions.Name, params.Prune, params.BackupOptions.EncryptionConfigSecretName))
 		restoreTemplate.Spec.BackupFilename = filename
 		client, err = client.ReLogin()
 		Expect(err).NotTo(HaveOccurred())
@@ -185,6 +193,24 @@ var _ = DescribeTable("Test: Rancher inplace backup and restore test.",
 			RetentionCount:  10,
 		},
 		BackupFileExtension: ".tar.gz",
+		ProvisioningInput: charts.ProvisioningConfig{
+			RKE2KubernetesVersions: []string{utils.GetEnvOrDefault("RKE2_VERSION", "v1.31.5+rke2r1")},
+			Providers:              []string{"aws"},
+			NodeProviders:          []string{"ec2"},
+			CNIs:                   []string{"calico"},
+		},
+		Prune: true,
+	}),
+
+	Entry("(with encryption)", Label("LEVEL0", "backup-restore", "s3", "inplace"), InplaceParams{
+		StorageType: "s3",
+		BackupOptions: charts.BackupOptions{
+			Name:                       namegen.AppendRandomString("backup"),
+			ResourceSetName:            "rancher-resource-set",
+			RetentionCount:             10,
+			EncryptionConfigSecretName: "encryptionconfig",
+		},
+		BackupFileExtension: ".tar.gz.enc",
 		ProvisioningInput: charts.ProvisioningConfig{
 			RKE2KubernetesVersions: []string{utils.GetEnvOrDefault("RKE2_VERSION", "v1.31.5+rke2r1")},
 			Providers:              []string{"aws"},
