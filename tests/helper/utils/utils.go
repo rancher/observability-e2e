@@ -1,10 +1,18 @@
 package utils
 
 import (
+	"archive/tar"
+	"compress/gzip"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
 
 	"github.com/creasty/defaults"
 	rancher "github.com/rancher/shepherd/clients/rancher"
@@ -14,6 +22,14 @@ import (
 	"gopkg.in/yaml.v2"
 	e2e "k8s.io/kubernetes/test/e2e/framework"
 )
+
+type Config struct {
+	Brand          string `json:"brand" yaml:"brand"`
+	GitCommit      string `json:"gitCommit" yaml:"gitCommit"`
+	IsPrime        bool   `json:"isPrime" yaml:"isPrime" default:"false"`
+	RancherVersion string `json:"rancherVersion" yaml:"rancherVersion"`
+	Registry       string `json:"registry" yaml:"registry"`
+}
 
 func DeployPrometheusRule(mySession *rancher.Client, yamlPath string) error {
 
@@ -188,4 +204,145 @@ func GetEnvOrDefault(key, defaultValue string) string {
 		return defaultValue
 	}
 	return value
+}
+
+func RequestRancherVersion(rancherURL string) (*Config, error) {
+	httpURL := "https://" + rancherURL + "/rancherversion"
+
+	// Insecure TLS config to skip certificate verification
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, // ⚠️ For dev only
+	}
+	client := &http.Client{Transport: tr}
+
+	resp, err := client.Get(httpURL)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	byteObject, err := io.ReadAll(resp.Body)
+	if err != nil || byteObject == nil {
+		return nil, err
+	}
+
+	var jsonObject map[string]interface{}
+	err = json.Unmarshal(byteObject, &jsonObject)
+	if err != nil {
+		return nil, err
+	}
+
+	configObject := new(Config)
+	configObject.IsPrime, _ = strconv.ParseBool(jsonObject["RancherPrime"].(string))
+	configObject.RancherVersion = jsonObject["Version"].(string)
+	configObject.GitCommit = jsonObject["GitCommit"].(string)
+
+	return configObject, nil
+}
+
+// GetRancherVersion returns the Rancher version in X.Y format (major.minor)
+// Handles formats like:
+//   - "rancher/rancher:v2.10.3"          → "2.10"
+//   - "v2.11-abc123-head"                → "2.11"
+//   - "2.12.1"                           → "2.12"
+//   - "rancher/rancher:v2.13.0-alpha1"   → "2.13"
+func GetRancherVersion(clientWithSession *rancher.Client) (string, error) {
+	rancherConfig, err := RequestRancherVersion(clientWithSession.RancherConfig.Host)
+	if err != nil {
+		return "", fmt.Errorf("failed to get Rancher version: %w", err)
+	}
+
+	image := strings.TrimSpace(rancherConfig.RancherVersion)
+	if image == "" {
+		return "", fmt.Errorf("empty Rancher version string")
+	}
+
+	// Extract version part, e.g., "v2.11-abc123-head" or "2.10.3"
+	var versionWithV string
+	if strings.Contains(image, ":") {
+		parts := strings.Split(image, ":")
+		if len(parts) != 2 {
+			return "", fmt.Errorf("unexpected version format: %s", image)
+		}
+		versionWithV = parts[1]
+	} else {
+		versionWithV = image
+	}
+
+	// Trim leading 'v' if present
+	version := strings.TrimPrefix(versionWithV, "v")
+
+	// Remove any suffix like "-head" or "-<commit>"
+	if dashIdx := strings.Index(version, "-"); dashIdx != -1 {
+		version = version[:dashIdx]
+	}
+
+	// Split into major.minor.patch
+	parts := strings.Split(version, ".")
+	if len(parts) < 2 {
+		return "", fmt.Errorf("invalid version format: %s", version)
+	}
+
+	major := parts[0]
+	minor := parts[1]
+
+	return fmt.Sprintf("%s.%s", major, minor), nil
+}
+
+func CreateTempDir(dirName string) (string, error) {
+	tmpPath := filepath.Join(os.TempDir(), dirName)
+	err := os.MkdirAll(tmpPath, 0755) // 0755 = rwxr-xr-x
+	if err != nil {
+		return "", fmt.Errorf("failed to create temp directory: %w", err)
+	}
+	return tmpPath, nil
+}
+
+func ExtractTarGz(srcFile, destDir string) error {
+	f, err := os.Open(srcFile)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	gzr, err := gzip.NewReader(f)
+	if err != nil {
+		return err
+	}
+	defer gzr.Close()
+
+	tr := tar.NewReader(gzr)
+
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+
+		target := filepath.Join(destDir, hdr.Name)
+
+		switch hdr.Typeflag {
+		case tar.TypeDir:
+			if err := os.MkdirAll(target, 0755); err != nil {
+				return err
+			}
+		case tar.TypeReg:
+			if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
+				return err
+			}
+			out, err := os.Create(target)
+			if err != nil {
+				return err
+			}
+			if _, err := io.Copy(out, tr); err != nil {
+				out.Close()
+				return err
+			}
+			out.Close()
+		}
+	}
+	return nil
 }

@@ -31,15 +31,9 @@ import (
 
 const exampleAppProjectName = "System"
 
-type BackupRestoreParams struct {
-	StorageType   string
-	BackupOptions charts.BackupOptions
-}
-
 var _ = Describe("Parameterized Backup and Restore Chart Installation Tests", func() {
-
 	var _ = DescribeTable("Test: Backup and Restore Chart Installation with multiple storage",
-		func(params BackupRestoreParams) {
+		func(params charts.BackupParams) {
 			if params.StorageType == "s3" && skipS3Tests {
 				Skip("Skipping S3 tests as the access key is empty.")
 			}
@@ -52,6 +46,8 @@ var _ = Describe("Parameterized Backup and Restore Chart Installation Tests", fu
 			clientWithSession, err = client.WithSession(sess)
 			Expect(err).NotTo(HaveOccurred())
 
+			err = charts.SelectResourceSetName(clientWithSession, &params.BackupOptions)
+			Expect(err).NotTo(HaveOccurred())
 			By(fmt.Sprintf("Installing Backup Restore Chart with %s", params.StorageType))
 
 			// Check if the chart is already installed
@@ -126,22 +122,20 @@ var _ = Describe("Parameterized Backup and Restore Chart Installation Tests", fu
 		},
 
 		// **Test Case: Install with S3 Storage**
-		Entry("Install Backup Restore Chart with S3 Storage", Label("LEVEL0", "backup-restore", "s3", "installation"), BackupRestoreParams{
+		Entry("Install Backup Restore Chart with S3 Storage", Label("LEVEL0", "backup-restore", "s3", "installation"), charts.BackupParams{
 			StorageType: "s3",
 			BackupOptions: charts.BackupOptions{
-				Name:            namegen.AppendRandomString("backup"),
-				ResourceSetName: "rancher-resource-set",
-				RetentionCount:  10,
+				Name:           namegen.AppendRandomString("backup"),
+				RetentionCount: 10,
 			},
 		}),
 
 		// **Test Case: Install with local Storage**
-		Entry("Install Backup Restore Chart with Local Storage Class", Label("LEVEL0", "backup-restore", "local", "installation"), BackupRestoreParams{
+		Entry("Install Backup Restore Chart with Local Storage Class", Label("LEVEL0", "backup-restore", "local", "installation"), charts.BackupParams{
 			StorageType: "storageClass",
 			BackupOptions: charts.BackupOptions{
-				Name:            namegen.AppendRandomString("backup"),
-				ResourceSetName: "rancher-resource-set",
-				RetentionCount:  10,
+				Name:           namegen.AppendRandomString("backup"),
+				RetentionCount: 10,
 			},
 		}),
 	)
