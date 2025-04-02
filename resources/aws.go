@@ -2,6 +2,7 @@ package resources
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -52,6 +53,33 @@ func (s *S3Client) FileExistsInBucket(bucketName, fileName string) (bool, error)
 	}
 
 	return true, nil // File exists
+}
+
+// ListFilesAndTimeDifference retrieves a list of files from the specified folder in the bucket and calculates time differences
+func (s *S3Client) ListFilesAndTimeDifference(bucketName, folderName string) ([]string, error) {
+	var fileDetails []string
+	input := &s3.ListObjectsV2Input{
+		Bucket: aws.String(bucketName),
+		Prefix: aws.String(folderName),
+	}
+
+	// List objects in the specified folder
+	resp, err := s.client.ListObjectsV2(input)
+	if err != nil {
+		return nil, fmt.Errorf("error listing objects: %v", err)
+	}
+
+	// Iterate through the listed objects and calculate the time difference for each file
+	for _, object := range resp.Contents {
+		// Calculate the time difference
+		lastModified := *object.LastModified
+		timeDiff := time.Since(lastModified)
+
+		// Format the file details (file name and time difference)
+		fileDetails = append(fileDetails, fmt.Sprintf("File: %s, Last Modified: %s, Time Difference: %v", *object.Key, lastModified.Format(time.RFC3339), timeDiff))
+	}
+
+	return fileDetails, nil
 }
 
 // CreateBucket creates the S3 bucket
