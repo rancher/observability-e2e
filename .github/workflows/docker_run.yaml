@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        tag: ['v2.8-head', 'v2.9-head', 'v2.10-head', 'head'] # Rancher version tags
+        tag: ['v2.8-head', 'v2.9-head', 'v2.10-head', 'v2.11-head', 'head'] # Rancher version tags
       fail-fast: false
 
     steps:
@@ -25,10 +25,17 @@ jobs:
 
       - name: Start Rancher container
         run: |
+          if [[ "${{ matrix.tag }}" == "v2.8-head" || "${{ matrix.tag }}" == "v2.9-head" ]]; then
+              IMAGE="stgregistry.suse.com/rancher/rancher:${{ matrix.tag }}"
+          else
+              IMAGE="rancher/rancher:${{ matrix.tag }}"
+          fi
+
           docker run -d -it --name rancher \
-            -e "CATTLE_BOOTSTRAP_PASSWORD=${{ env.PASSWORD }}" --restart unless-stopped \
-            -p 80:80 -p 443:443 -p 6443:6443 \
-            --privileged "rancher/rancher:${{ matrix.tag }}"
+              -e "CATTLE_BOOTSTRAP_PASSWORD=${{ env.PASSWORD }}" \
+              --restart unless-stopped \
+              -p 80:80 -p 443:443 -p 6443:6443 \
+              --privileged "$IMAGE"
 
       - name: Wait for Rancher to initialize
         run: sleep 3m  # Rancher's startup time
