@@ -34,7 +34,7 @@ const (
 	BackupRestoreConfigurationFileKey = "../helper/yamls/inputBackupRestoreConfig.yaml"
 	localStorageClass                 = "../helper/yamls/localStorageClass.yaml"
 	EncryptionConfigFilePath          = "../helper/yamls/encrptionConfig.yaml"
-	backupSteveType                   = "resources.cattle.io.backup"
+	BackupSteveType                   = "resources.cattle.io.backup"
 	RestoreSteveType                  = "resources.cattle.io.restore"
 	resourceCount                     = 2
 	cniCalico                         = "calico"
@@ -55,6 +55,7 @@ type BackupOptions struct {
 	ResourceSetName            string
 	RetentionCount             int64
 	EncryptionConfigSecretName string
+	Schedule                   string
 }
 
 type ProvisioningConfig struct {
@@ -306,7 +307,11 @@ func setBackupObject(backupOptions BackupOptions) *bv1.Backup {
 			ResourceSetName:            backupOptions.ResourceSetName,
 			RetentionCount:             backupOptions.RetentionCount,
 			EncryptionConfigSecretName: backupOptions.EncryptionConfigSecretName,
+			Schedule:                   backupOptions.Schedule,
 		},
+		// Status: bv1.BackupStatus{
+		// 	BackupType: "Recurring",
+		// },
 	}
 	return backup
 }
@@ -354,11 +359,11 @@ func CreateRancherBackupAndVerifyCompleted(client *rancher.Client, backupOptions
 	if err != nil {
 		return nil, "", err
 	}
-	completedBackup, err := client.Steve.SteveType(backupSteveType).Create(backupTemplate)
+	completedBackup, err := client.Steve.SteveType(BackupSteveType).Create(backupTemplate)
 	if err != nil {
 		return nil, "", err
 	}
-	_, backupFileName, err := VerifyBackupCompleted(client, backupSteveType, completedBackup)
+	_, backupFileName, err := VerifyBackupCompleted(client, BackupSteveType, completedBackup)
 	if err != nil {
 		return nil, "", err
 	}
