@@ -54,6 +54,8 @@ var _ = DescribeTable("Test: Rancher inplace backup and restore test.",
 		clientWithSession, err = client.WithSession(sess)
 		Expect(err).NotTo(HaveOccurred())
 
+		err = charts.SelectResourceSetName(clientWithSession, &params.BackupOptions)
+		Expect(err).NotTo(HaveOccurred())
 		By(fmt.Sprintf("Installing Backup Restore Chart with %s", params.StorageType))
 
 		// Check if the chart is already installed
@@ -206,7 +208,6 @@ var _ = DescribeTable("Test: Rancher inplace backup and restore test.",
 		StorageType: "s3",
 		BackupOptions: charts.BackupOptions{
 			Name:                       namegen.AppendRandomString("backup"),
-			ResourceSetName:            "rancher-resource-set",
 			RetentionCount:             10,
 			EncryptionConfigSecretName: "encryptionconfig",
 		},

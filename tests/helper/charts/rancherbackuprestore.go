@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	bv1 "github.com/rancher/backup-restore-operator/pkg/apis/resources.cattle.io/v1"
@@ -34,7 +36,7 @@ const (
 	BackupRestoreConfigurationFileKey = "../helper/yamls/inputBackupRestoreConfig.yaml"
 	localStorageClass                 = "../helper/yamls/localStorageClass.yaml"
 	EncryptionConfigFilePath          = "../helper/yamls/encrptionConfig.yaml"
-	backupSteveType                   = "resources.cattle.io.backup"
+	BackupSteveType                   = "resources.cattle.io.backup"
 	RestoreSteveType                  = "resources.cattle.io.restore"
 	resourceCount                     = 2
 	cniCalico                         = "calico"
@@ -55,6 +57,7 @@ type BackupOptions struct {
 	ResourceSetName            string
 	RetentionCount             int64
 	EncryptionConfigSecretName string
+	Schedule                   string
 }
 
 type ProvisioningConfig struct {
@@ -62,6 +65,14 @@ type ProvisioningConfig struct {
 	NodeProviders          []string `json:"nodeProviders,omitempty" yaml:"nodeProviders,omitempty"`
 	RKE2KubernetesVersions []string `json:"rke2KubernetesVersion,omitempty" yaml:"rke2KubernetesVersion,omitempty"`
 	CNIs                   []string `json:"cni,omitempty" yaml:"cni,omitempty"`
+}
+
+type BackupParams struct {
+	StorageType         string
+	BackupOptions       BackupOptions
+	BackupFileExtension string
+	Prune               bool
+	SecretsExists       bool
 }
 
 // InstallRancherBackupRestoreChart installs the Rancher backup/restore chart with optional storage configuration.
@@ -306,7 +317,11 @@ func setBackupObject(backupOptions BackupOptions) *bv1.Backup {
 			ResourceSetName:            backupOptions.ResourceSetName,
 			RetentionCount:             backupOptions.RetentionCount,
 			EncryptionConfigSecretName: backupOptions.EncryptionConfigSecretName,
+			Schedule:                   backupOptions.Schedule,
 		},
+		// Status: bv1.BackupStatus{
+		// 	BackupType: "Recurring",
+		// },
 	}
 	return backup
 }
@@ -354,11 +369,11 @@ func CreateRancherBackupAndVerifyCompleted(client *rancher.Client, backupOptions
 	if err != nil {
 		return nil, "", err
 	}
-	completedBackup, err := client.Steve.SteveType(backupSteveType).Create(backupTemplate)
+	completedBackup, err := client.Steve.SteveType(BackupSteveType).Create(backupTemplate)
 	if err != nil {
 		return nil, "", err
 	}
-	_, backupFileName, err := VerifyBackupCompleted(client, backupSteveType, completedBackup)
+	_, backupFileName, err := VerifyBackupCompleted(client, BackupSteveType, completedBackup)
 	if err != nil {
 		return nil, "", err
 	}
@@ -474,4 +489,82 @@ func VerifyRancherResources(client *rancher.Client, curUserList []*management.Us
 	}
 
 	return errors.Join(errs...)
+}
+
+func ValidateBackupFile(basePath string) error {
+	// Look for a directory starting with "secrets.#v1"
+	var secretsDir string
+	files, err := os.ReadDir(basePath)
+	if err != nil {
+		return fmt.Errorf("error reading base path: %v", err)
+	}
+
+	for _, f := range files {
+		if f.IsDir() && strings.HasPrefix(f.Name(), "secrets.#v1") {
+			secretsDir = filepath.Join(basePath, f.Name())
+			break
+		}
+	}
+
+	if secretsDir == "" {
+		return fmt.Errorf("no secrets.#v1 directory found")
+	}
+
+	// Expected subdirectories under secrets.#v1
+	expected := []string{
+		"cattle-system",
+		"cattle-global-data",
+		"cattle-fleet-local-system",
+		"cattle-impersonation-system",
+		"cattle-provisioning-capi-system",
+		"cattle-resources-system",
+	}
+
+	for _, name := range expected {
+		path := filepath.Join(secretsDir, name)
+		info, err := os.Stat(path)
+		if err != nil {
+			return fmt.Errorf("missing or inaccessible: %s", name)
+		}
+		if !info.IsDir() {
+			return fmt.Errorf("expected a directory but found something else: %s", name)
+		}
+	}
+
+	e2e.Logf("Backup file validation passed.")
+	return nil
+}
+
+// IsVersionAtLeast compares a semantic version string (e.g. "2.10.3")
+// against a target major and minor version. Returns true if the version
+// is equal to or greater than the target.
+func IsVersionAtLeast(version string, targetMajor, targetMinor int) (bool, error) {
+	var major, minor int
+	_, err := fmt.Sscanf(version, "%d.%d", &major, &minor)
+	if err != nil {
+		return false, fmt.Errorf("invalid version format: %w", err)
+	}
+
+	if major > targetMajor || (major == targetMajor && minor >= targetMinor) {
+		return true, nil
+	}
+	return false, nil
+}
+
+// SelectResourceSetName determines the resource set name based on the Rancher version.
+func SelectResourceSetName(clientWithSession *rancher.Client, params *BackupOptions) error {
+	rancherVersion, err := utils.GetRancherVersion(clientWithSession)
+	if err != nil {
+		return fmt.Errorf("unable to parse the version: %v", err)
+	}
+	ok, err := IsVersionAtLeast(rancherVersion, 2, 11)
+	if err != nil {
+		return err
+	}
+	if ok {
+		params.ResourceSetName = "rancher-resource-set-basic"
+	} else {
+		params.ResourceSetName = "rancher-resource-set"
+	}
+	return nil
 }
