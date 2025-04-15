@@ -184,6 +184,10 @@ var _ = DescribeTable("Test: Rancher inplace backup and restore test.",
 		By("Validating downstream clusters are in an Active status...")
 		err = resources.VerifyCluster(client, clusterName)
 		Expect(err).NotTo(HaveOccurred())
+
+		By("Delete the downstream clusters are in an Active status...")
+		err = resources.DeleteCluster(client, clusterName)
+		Expect(err).NotTo(HaveOccurred())
 	},
 
 	// **Test Case: Rancher inplace backup and restore test scenarios
