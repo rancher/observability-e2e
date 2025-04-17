@@ -272,3 +272,20 @@ func CreateRKE2Cluster(rancherClient *rancher.Client, cloudCredentialName string
 	}
 	return config.ClusterSpec.Metadata.Name, nil
 }
+
+// DeleteCluster deletes a Rancher cluster using the provisioning API
+func DeleteCluster(rancherClient *rancher.Client, clusterName string) error {
+	// Build the URL for deleting the cluster
+	url := fmt.Sprintf("https://%s/%s/fleet-default/%s", rancherClient.RancherConfig.Host, clusterspecAPIPath, clusterName)
+	e2e.Logf("Sending DELETE request to %s", url)
+
+	// Send the DELETE request
+	_, err := makeRequest("DELETE", url, "", rancherClient.RancherConfig.AdminToken)
+	if err != nil {
+		e2e.Logf("Error deleting cluster %s: %v", clusterName, err)
+		return fmt.Errorf("failed to delete cluster %s: %w", clusterName, err)
+	}
+
+	e2e.Logf("Successfully deleted cluster %s.", clusterName)
+	return nil
+}
