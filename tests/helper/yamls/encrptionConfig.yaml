@@ -8,7 +8,6 @@ resources:
       - aescbc:
           keys:
             - name: key1
-              secret: "/tmp/encryption_key" # echo -n "<secret_key>" > /tmp/encryption_key
-                                            # chmod 600 /tmp/encryption_key
+              secret: "8DhGrZI+gP79ForM3ddbUPsaTCweztCrhg/Vg7YTtmI="
       - identity: {} # this fallback allows reading unencrypted secrets;
                      # for example, during initial migration

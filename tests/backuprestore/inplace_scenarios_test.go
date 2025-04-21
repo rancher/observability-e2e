@@ -38,7 +38,10 @@ type InplaceParams struct {
 	BackupFileExtension string
 	ProvisioningInput   charts.ProvisioningConfig
 	Prune               bool
+	CreateCluster       bool
 }
+
+var clusterName string
 
 var _ = DescribeTable("Test: Rancher inplace backup and restore test.",
 	func(params InplaceParams) {
@@ -76,10 +79,11 @@ var _ = DescribeTable("Test: Rancher inplace backup and restore test.",
 		e2e.Logf("%v, %v, %v", userList, projList, roleList)
 		Expect(err).NotTo(HaveOccurred())
 
-		By("Provisioning a downstream RKE2 cluster...")
-		clusterName, err := resources.CreateRKE2Cluster(clientWithSession, CloudCredentialName)
-		Expect(err).NotTo(HaveOccurred())
-
+		if params.CreateCluster == true {
+			By("Provisioning a downstream RKE2 cluster...")
+			clusterName, err = resources.CreateRKE2Cluster(clientWithSession, CloudCredentialName)
+			Expect(err).NotTo(HaveOccurred())
+		}
 		// Ensure chart uninstall runs at the end of the test
 		DeferCleanup(func() {
 			By("Uninstalling the rancher backup-restore chart")
@@ -170,24 +174,32 @@ var _ = DescribeTable("Test: Rancher inplace backup and restore test.",
 		restoreObj, err := client.Steve.SteveType(charts.RestoreSteveType).ByID(createdRestore.ID)
 		Expect(err).NotTo(HaveOccurred())
 
-		// charts.VerifyRestoreCompleted(b.client, restoreSteveType, restoreObj)
+		By("Verify that restore is completed and successfully.")
 		status, err := charts.VerifyRestoreCompleted(client, charts.RestoreSteveType, restoreObj)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status).To(Equal(true))
 
-		By(("Validating Rancher resources..."))
+		By(("Validating Rancher resource still exists"))
 		err = charts.VerifyRancherResources(client, userList, projList, roleList)
 		Expect(err).NotTo(HaveOccurred())
+
+		By("Validate that rancher resources create after the backup are also exists (works if Prune is false) ")
 		err = charts.VerifyRancherResources(client, userListPostBackup, projListPostBackup, roleListPostBackup)
-		Expect(err).To(HaveOccurred())
+		if params.Prune == true {
+			Expect(err).To(HaveOccurred())
+		} else {
+			Expect(err).NotTo(HaveOccurred())
+		}
 
-		By("Validating downstream clusters are in an Active status...")
-		err = resources.VerifyCluster(client, clusterName)
-		Expect(err).NotTo(HaveOccurred())
+		if params.CreateCluster == true {
+			By("Validating downstream clusters are in an Active status...")
+			err = resources.VerifyCluster(client, clusterName)
+			Expect(err).NotTo(HaveOccurred())
 
-		By("Delete the downstream clusters are in an Active status...")
-		err = resources.DeleteCluster(client, clusterName)
-		Expect(err).NotTo(HaveOccurred())
+			By("Delete the downstream clusters are in an Active status...")
+			err = resources.DeleteCluster(client, clusterName)
+			Expect(err).NotTo(HaveOccurred())
+		}
 	},
 
 	// **Test Case: Rancher inplace backup and restore test scenarios
@@ -205,7 +217,8 @@ var _ = DescribeTable("Test: Rancher inplace backup and restore test.",
 			NodeProviders:          []string{"ec2"},
 			CNIs:                   []string{"calico"},
 		},
-		Prune: true,
+		Prune:         true,
+		CreateCluster: true,
 	}),
 
 	Entry("(with encryption)", Label("LEVEL0", "backup-restore", "s3", "inplace"), InplaceParams{
@@ -222,6 +235,25 @@ var _ = DescribeTable("Test: Rancher inplace backup and restore test.",
 			NodeProviders:          []string{"ec2"},
 			CNIs:                   []string{"calico"},
 		},
-		Prune: true,
+		Prune:         true,
+		CreateCluster: true,
+	}),
+
+	Entry("(with Prune is set as false)", Label("LEVEL1", "backup-restore", "s3", "prune"), InplaceParams{
+		StorageType: "s3",
+		BackupOptions: charts.BackupOptions{
+			Name:                       namegen.AppendRandomString("backup"),
+			RetentionCount:             10,
+			EncryptionConfigSecretName: "encryptionconfig",
+		},
+		BackupFileExtension: ".tar.gz.enc",
+		ProvisioningInput: charts.ProvisioningConfig{
+			RKE2KubernetesVersions: []string{utils.GetEnvOrDefault("RKE2_VERSION", "v1.31.5+rke2r1")},
+			Providers:              []string{"aws"},
+			NodeProviders:          []string{"ec2"},
+			CNIs:                   []string{"calico"},
+		},
+		Prune:         false,
+		CreateCluster: false,
 	}),
 )
