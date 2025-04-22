@@ -36,6 +36,7 @@ const (
 	BackupRestoreConfigurationFileKey = "../helper/yamls/inputBackupRestoreConfig.yaml"
 	localStorageClass                 = "../helper/yamls/localStorageClass.yaml"
 	EncryptionConfigFilePath          = "../helper/yamls/encrptionConfig.yaml"
+	EncryptionConfigAsteriskFilePath  = "../helper/yamls/encrptionConfigwithAsterisk.yaml"
 	BackupSteveType                   = "resources.cattle.io.backup"
 	RestoreSteveType                  = "resources.cattle.io.restore"
 	resourceCount                     = 2
