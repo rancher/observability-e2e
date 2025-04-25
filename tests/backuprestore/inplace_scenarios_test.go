@@ -33,12 +33,13 @@ import (
 )
 
 type InplaceParams struct {
-	StorageType         string
-	BackupOptions       charts.BackupOptions
-	BackupFileExtension string
-	ProvisioningInput   charts.ProvisioningConfig
-	Prune               bool
-	CreateCluster       bool
+	StorageType              string
+	BackupOptions            charts.BackupOptions
+	BackupFileExtension      string
+	ProvisioningInput        charts.ProvisioningConfig
+	Prune                    bool
+	CreateCluster            bool
+	EncryptionConfigFilePath string
 }
 
 var clusterName string
@@ -139,7 +140,13 @@ var _ = DescribeTable("Test: Rancher inplace backup and restore test.",
 		}
 		By("Check if the backup needs to be encrypted, if yes create the encryptionconfig secret")
 		if params.BackupOptions.EncryptionConfigSecretName != "" {
-			secretName, err = charts.CreateEncryptionConfigSecret(client.Steve, charts.EncryptionConfigFilePath,
+			By("Delete any existing encryption config")
+			existingSecret, err := client.Steve.SteveType("secret").ByID("cattle-resources-system/encryptionconfig")
+			if err == nil {
+				err = client.Steve.SteveType("secret").Delete(existingSecret)
+				Expect(err).NotTo(HaveOccurred())
+			}
+			secretName, err = charts.CreateEncryptionConfigSecret(client.Steve, params.EncryptionConfigFilePath,
 				params.BackupOptions.EncryptionConfigSecretName, charts.RancherBackupRestoreNamespace)
 			if err != nil {
 				e2e.Logf("Error applying encryption config: %v", err)
@@ -217,8 +224,9 @@ var _ = DescribeTable("Test: Rancher inplace backup and restore test.",
 			NodeProviders:          []string{"ec2"},
 			CNIs:                   []string{"calico"},
 		},
-		Prune:         true,
-		CreateCluster: true,
+		Prune:                    true,
+		CreateCluster:            true,
+		EncryptionConfigFilePath: charts.EncryptionConfigFilePath,
 	}),
 
 	Entry("(with encryption)", Label("LEVEL0", "backup-restore", "s3", "inplace"), InplaceParams{
@@ -235,8 +243,9 @@ var _ = DescribeTable("Test: Rancher inplace backup and restore test.",
 			NodeProviders:          []string{"ec2"},
 			CNIs:                   []string{"calico"},
 		},
-		Prune:         true,
-		CreateCluster: true,
+		Prune:                    true,
+		CreateCluster:            true,
+		EncryptionConfigFilePath: charts.EncryptionConfigFilePath,
 	}),
 
 	Entry("(with Prune is set as false)", Label("LEVEL1", "backup-restore", "s3", "prune"), InplaceParams{
@@ -253,7 +262,27 @@ var _ = DescribeTable("Test: Rancher inplace backup and restore test.",
 			NodeProviders:          []string{"ec2"},
 			CNIs:                   []string{"calico"},
 		},
-		Prune:         false,
-		CreateCluster: false,
+		Prune:                    false,
+		CreateCluster:            false,
+		EncryptionConfigFilePath: charts.EncryptionConfigFilePath,
+	}),
+
+	Entry("(with encryption config having asterisk *)", Label("LEVEL1", "backup-restore", "s3", "encryption-config-asterisk"), InplaceParams{
+		StorageType: "s3",
+		BackupOptions: charts.BackupOptions{
+			Name:                       namegen.AppendRandomString("backup"),
+			RetentionCount:             10,
+			EncryptionConfigSecretName: "encryptionconfig",
+		},
+		BackupFileExtension: ".tar.gz.enc",
+		ProvisioningInput: charts.ProvisioningConfig{
+			RKE2KubernetesVersions: []string{utils.GetEnvOrDefault("RKE2_VERSION", "v1.31.5+rke2r1")},
+			Providers:              []string{"aws"},
+			NodeProviders:          []string{"ec2"},
+			CNIs:                   []string{"calico"},
+		},
+		Prune:                    true,
+		CreateCluster:            false,
+		EncryptionConfigFilePath: charts.EncryptionConfigAsteriskFilePath,
 	}),
 )
