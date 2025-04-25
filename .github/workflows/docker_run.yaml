@@ -104,16 +104,11 @@ jobs:
       - name: Create artifacts directory
         run: mkdir -p ~/artifacts
 
-      - name: Run Installation Charts Tests
-        id: run_installation_tests
+      - name: Run Observability Charts Tests
+        id: run_observability_tests
         run: |
           set -e
           TEST_LABEL_FILTER=installation go test -timeout 20m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-installation-${{ matrix.tag }}.txt
-
-      - name: Run E2E Tests
-        id: run_e2e_tests
-        run: |
-          set -e
           TEST_LABEL_FILTER=E2E go test -timeout 30m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-e2e-${{ matrix.tag }}.txt
 
       - name: Run Installation Charts Tests For Backup and Restore
@@ -122,6 +117,15 @@ jobs:
           set -e
           mv ./tests/helper/yamls/inputBackupRestoreConfig.yaml.example ./tests/helper/yamls/inputBackupRestoreConfig.yaml
           TEST_LABEL_FILTER=installation go test -timeout 20m github.com/rancher/observability-e2e/tests/backuprestore -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-installation-${{ matrix.tag }}.txt
+
+      - name: Run Observability Upgrade tests
+        id: run_observability_upgrade_tests
+        run: |
+          set -e
+          TEST_LABEL_FILTER=beforeUpgrade go test -timeout 20m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-upgrade-${{ matrix.tag }}.txt
+          TEST_LABEL_FILTER=E2E go test -timeout 30m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-e2e-${{ matrix.tag }}.txt
+          TEST_LABEL_FILTER=afterUpgrade go test -timeout 20m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-upgrade-${{ matrix.tag }}.txt
+          TEST_LABEL_FILTER=E2E go test -timeout 30m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-e2e-${{ matrix.tag }}.txt
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -138,11 +142,9 @@ jobs:
       - name: Check Test Results and Mark Pipeline
         if: always()
         run: |
-          if [[ -f ~/artifacts/test-output-installation-${{ matrix.tag }}.txt ]] && grep -q "FAIL" ~/artifacts/test-output-installation-${{ matrix.tag }}.txt; then
-            echo "Installation tests failed!"
-            exit 1
-          fi
-          if [[ -f ~/artifacts/test-output-e2e-${{ matrix.tag }}.txt ]] && grep -q "FAIL" ~/artifacts/test-output-e2e-${{ matrix.tag }}.txt; then
-            echo "E2E tests failed!"
-            exit 1
-          fi
+          for log_file in ~/artifacts/test-output-installation-${{ matrix.tag }}.txt ~/artifacts/test-output-e2e-${{ matrix.tag }}.txt ~/artifacts/test-output-upgrade-${{ matrix.tag }}.txt; do
+            if [[ -f "$log_file" ]] && grep -q "FAIL" "$log_file"; then
+              echo "$(basename "$log_file") contains failures!"
+              exit 1
+            fi
+          done
