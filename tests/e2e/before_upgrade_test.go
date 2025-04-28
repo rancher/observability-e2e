@@ -1,0 +1,94 @@
+/*
+Copyright © 2024 - 2025 SUSE LLC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package e2e_test
+
+import (
+	"fmt"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+	"github.com/rancher/observability-e2e/tests/helper/charts"
+	rancher "github.com/rancher/shepherd/clients/rancher"
+	catalog "github.com/rancher/shepherd/clients/rancher/catalog"
+	extencharts "github.com/rancher/shepherd/extensions/charts"
+	e2e "k8s.io/kubernetes/test/e2e/framework"
+)
+
+var _ = Describe("Observability Upgrade Test Suite", func() {
+	var clientWithSession *rancher.Client
+	var err error
+
+	JustBeforeEach(func() {
+		By("Creating a client session")
+		clientWithSession, err = client.WithSession(sess)
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	It("Uninstall Existing Observability Charts", Label("monitoring", "beforeUpgrade"), func() {
+		chartsToUninstall := []struct {
+			name      string
+			namespace string
+		}{
+			{name: charts.RancherMonitoringName, namespace: charts.RancherMonitoringNamespace},
+			{name: charts.RancherMonitoringCRDName, namespace: charts.RancherMonitoringNamespace},
+		}
+
+		for _, chartInfo := range chartsToUninstall {
+			By(fmt.Sprintf("Checking if the %v chart is already installed", chartInfo.name))
+			initialChartStatus, err := extencharts.GetChartStatus(clientWithSession, project.ClusterID, chartInfo.namespace, chartInfo.name)
+			Expect(err).NotTo(HaveOccurred())
+
+			if initialChartStatus.IsAlreadyInstalled {
+				e2e.Logf("Uninstalling chart %v", chartInfo.name)
+				err = charts.UninstallChart(clientWithSession, project.ClusterID, chartInfo.name, chartInfo.namespace)
+				Expect(err).NotTo(HaveOccurred())
+			}
+		}
+	})
+
+	It("[QASE-3889] Install monitoring chart One Older Version", Label("monitoring", "beforeUpgrade"), func() {
+		testCaseID = 3889
+		e2e.Logf("Getting Monitoring Older Version")
+		monitoringVersionChartList, err := clientWithSession.Catalog.GetListChartVersions(charts.RancherMonitoringName, catalog.RancherChartRepo)
+		Expect(err).NotTo(HaveOccurred())
+		e2e.Logf("Chart List: %v", monitoringVersionChartList)
+
+		if len(monitoringVersionChartList) == 0 {
+			Skip("Not enough older versions found for the monitoring chart to proceed with installation")
+		}
+		monitoringVersion := monitoringVersionChartList[1]
+
+		monitoringInstOpts := &charts.InstallOptions{
+			Cluster:   cluster,
+			Version:   monitoringVersion,
+			ProjectID: project.ID,
+		}
+
+		monitoringOpts := &charts.RancherMonitoringOpts{
+			IngressNginx:      true,
+			ControllerManager: true,
+			Etcd:              true,
+			Proxy:             true,
+			Scheduler:         true,
+		}
+		e2e.Logf("Retrieved monitoring chart version to install: %v", monitoringVersion)
+
+		By("Installing monitoring chart with an older version")
+		err = charts.InstallRancherMonitoringChart(clientWithSession, monitoringInstOpts, monitoringOpts)
+		if err != nil {
+			e2e.Failf("Failed to install the monitoring chart. Error: %v", err)
+		}
+	})
+})

@@ -202,3 +202,57 @@ func UninstallChart(client *rancher.Client, clusterId, chartName, namespace stri
 	e2e.Logf("Successfully uninstalled chart: %s from namespace: %s", chartName, namespace)
 	return nil
 }
+
+// newChartUpgradeAction is a private constructor that creates a payload for chart upgrade action with given namespace and chartUpgrades.
+func newChartUpgradeAction(namespace string, chartUpgrades []types.ChartUpgrade) *types.ChartUpgradeAction {
+	return &types.ChartUpgradeAction{
+		DisableHooks:             false,
+		Timeout:                  &metav1.Duration{Duration: 600 * time.Second},
+		Wait:                     true,
+		Namespace:                namespace,
+		DisableOpenAPIValidation: false,
+		Force:                    false,
+		CleanupOnFail:            false,
+		Charts:                   chartUpgrades,
+	}
+}
+
+// newChartUpgradeAction is a private constructor that creates a chart upgrade with given chart values that can be used for chart upgrade action.
+func newChartUpgrade(chartName, releaseName, version, clusterID, clusterName, url, defaultRegistry string, chartValues map[string]interface{}) *types.ChartUpgrade {
+	chartUpgrade := types.ChartUpgrade{
+		Annotations: map[string]string{
+			"catalog.cattle.io/ui-source-repo":      "rancher-charts",
+			"catalog.cattle.io/ui-source-repo-type": "cluster",
+		},
+		ChartName:   chartName,
+		ReleaseName: releaseName,
+		Version:     version,
+		Values: v3.MapStringInterface{
+			"global": map[string]interface{}{
+				"cattle": map[string]string{
+					"clusterId":             clusterID,
+					"clusterName":           clusterName,
+					"rkePathPrefix":         "",
+					"rkeWindowsPathPrefix":  "",
+					"systemDefaultRegistry": defaultRegistry,
+					"url":                   url,
+				},
+				"systemDefaultRegistry": defaultRegistry,
+			},
+		},
+		ResetValues: false,
+	}
+
+	// Add the prometheus-node-exporter hostRootFsMount configuration
+	chartUpgrade.Values["prometheus-node-exporter"] = map[string]interface{}{
+		"hostRootFsMount": map[string]interface{}{
+			"enabled": false,
+		},
+	}
+
+	for k, v := range chartValues {
+		chartUpgrade.Values[k] = v
+	}
+
+	return &chartUpgrade
+}
