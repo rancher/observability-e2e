@@ -25,6 +25,7 @@ import (
 	"github.com/rancher/shepherd/pkg/wait"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/watch"
 	e2e "k8s.io/kubernetes/test/e2e/framework"
 )
@@ -568,4 +569,50 @@ func SelectResourceSetName(clientWithSession *rancher.Client, params *BackupOpti
 		params.ResourceSetName = "rancher-resource-set"
 	}
 	return nil
+}
+
+func WaitForDeploymentsCleanup(client *rancher.Client, clusterID string, namespace string) error {
+	const (
+		namespaceToCheck = "cattle-resources-system"
+		timeout          = 2 * time.Minute
+		interval         = 5 * time.Second
+	)
+
+	adminClient, err := rancher.NewClient(client.RancherConfig.AdminToken, client.Session)
+	if err != nil {
+		return fmt.Errorf("failed to create admin client: %w", err)
+	}
+
+	adminDynamicClient, err := adminClient.GetDownStreamClusterClient(clusterID)
+	if err != nil {
+		return fmt.Errorf("failed to get downstream client: %w", err)
+	}
+
+	deployGVR := schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}
+
+	// Manual polling with time.Sleep
+	timeoutChan := time.After(timeout)
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-timeoutChan:
+			return fmt.Errorf("timed out waiting for deployment cleanup in namespace %s", namespaceToCheck)
+		case <-ticker.C:
+			// List the deployments in the namespace
+			deployList, err := adminDynamicClient.Resource(deployGVR).Namespace(namespaceToCheck).List(context.TODO(), metav1.ListOptions{})
+			if err != nil {
+				return fmt.Errorf("failed to list deployments: %w", err)
+			}
+
+			if len(deployList.Items) > 0 {
+				e2e.Logf("Waiting for %d deployment(s) to terminate...\n", len(deployList.Items))
+			} else {
+				// No deployments left, cleanup is complete
+				e2e.Logf("All deployments have been removed.")
+				return nil
+			}
+		}
+	}
 }

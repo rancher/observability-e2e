@@ -16,6 +16,7 @@ package backuprestore
 
 import (
 	"fmt"
+	"log"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -115,6 +116,12 @@ var _ = Describe("Parameterized Backup and Restore Chart Installation Tests", fu
 			err = charts.UninstallBackupRestoreChart(clientWithSession, project.ClusterID, charts.RancherBackupRestoreNamespace)
 			Expect(err).NotTo(HaveOccurred())
 
+			By("Verify the uninstalling charts removed the backup and restore objects")
+			err = charts.WaitForDeploymentsCleanup(client, project.ClusterID, charts.RancherBackupRestoreNamespace)
+			if err != nil {
+				log.Fatalf("Cleanup check failed: %v", err)
+			}
+
 			By(fmt.Sprintf("Deleting required resources used for the storage type: %s testing", params.StorageType))
 			err = charts.DeleteStorageResources(params.StorageType, clientWithSession, BackupRestoreConfig)
 			Expect(err).NotTo(HaveOccurred())
@@ -122,7 +129,7 @@ var _ = Describe("Parameterized Backup and Restore Chart Installation Tests", fu
 		},
 
 		// **Test Case: Install with S3 Storage**
-		Entry("Install Backup Restore Chart with S3 Storage", Label("LEVEL0", "backup-restore", "s3", "installation"), charts.BackupParams{
+		Entry("Install and Uninstall Backup Restore Chart with S3 Storage", Label("LEVEL0", "backup-restore", "s3", "installation"), charts.BackupParams{
 			StorageType: "s3",
 			BackupOptions: charts.BackupOptions{
 				Name:           namegen.AppendRandomString("backup"),
@@ -131,7 +138,7 @@ var _ = Describe("Parameterized Backup and Restore Chart Installation Tests", fu
 		}),
 
 		// **Test Case: Install with local Storage**
-		Entry("Install Backup Restore Chart with Local Storage Class", Label("LEVEL0", "backup-restore", "local", "installation"), charts.BackupParams{
+		Entry("Install and Uninstall Backup Restore Chart with Local Storage Class", Label("LEVEL0", "backup-restore", "local", "installation"), charts.BackupParams{
 			StorageType: "storageClass",
 			BackupOptions: charts.BackupOptions{
 				Name:           namegen.AppendRandomString("backup"),
