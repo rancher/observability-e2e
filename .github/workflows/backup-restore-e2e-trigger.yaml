@@ -41,4 +41,3 @@ jobs:
       instance_ssh_key: ${{ secrets.INSTANCE_SSH_KEY }}
       aws_region: ${{ secrets.AWS_REGION }}
       key_name: ${{ secrets.AWS_KEY_NAME }}
-
