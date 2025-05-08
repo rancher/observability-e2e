@@ -43,6 +43,7 @@ var _ = Describe("Observability Upgrade Test Suite", func() {
 		}{
 			{name: charts.RancherMonitoringName, namespace: charts.RancherMonitoringNamespace},
 			{name: charts.RancherMonitoringCRDName, namespace: charts.RancherMonitoringNamespace},
+			{name: charts.PrometheusFederatorName, namespace: charts.PrometheusFederatorNamespace},
 		}
 
 		for _, chartInfo := range chartsToUninstall {
@@ -65,7 +66,7 @@ var _ = Describe("Observability Upgrade Test Suite", func() {
 		Expect(err).NotTo(HaveOccurred())
 		e2e.Logf("Chart List: %v", monitoringVersionChartList)
 
-		if len(monitoringVersionChartList) == 0 {
+		if len(monitoringVersionChartList) <= 1 {
 			Skip("Not enough older versions found for the monitoring chart to proceed with installation")
 		}
 		monitoringVersion := monitoringVersionChartList[1]
@@ -85,10 +86,42 @@ var _ = Describe("Observability Upgrade Test Suite", func() {
 		}
 		e2e.Logf("Retrieved monitoring chart version to install: %v", monitoringVersion)
 
-		By("Installing monitoring chart with an older version")
+		By(fmt.Sprintf("Installing monitoring chart with an %v version", monitoringVersion))
 		err = charts.InstallRancherMonitoringChart(clientWithSession, monitoringInstOpts, monitoringOpts)
 		if err != nil {
 			e2e.Failf("Failed to install the monitoring chart. Error: %v", err)
+		}
+	})
+
+	It("[QASE-8321] Install prometheus federator chart One Older Version", Label("promfed", "beforeUpgrade"), func() {
+		testCaseID = 8321
+		e2e.Logf("Getting prometheus federator Older Version")
+		promFedChartList, err := clientWithSession.Catalog.GetListChartVersions(charts.PrometheusFederatorName, catalog.RancherChartRepo)
+
+		Expect(err).NotTo(HaveOccurred())
+		e2e.Logf("Chart List: %v", promFedChartList)
+
+		if len(promFedChartList) <= 1 {
+			Skip("Not enough older versions found for the prometheus federator chart to proceed with installation")
+		}
+		promFedVersion := promFedChartList[1]
+
+		prometheusFederatorChartInstallOption := &charts.InstallOptions{
+			Cluster:   cluster,
+			Version:   promFedVersion,
+			ProjectID: project.ID,
+		}
+
+		prometheusFeatureOption := &charts.PrometheusFederatorOpts{
+			EnablePodSecurity: false,
+		}
+
+		e2e.Logf("Retrieved prometheus federator chart version to install: %v", promFedVersion)
+
+		By(fmt.Sprintf("Installing prometheus federator chart with an %v version", promFedVersion))
+		err = charts.InstallPrometheusFederatorChart(clientWithSession, prometheusFederatorChartInstallOption, prometheusFeatureOption)
+		if err != nil {
+			e2e.Failf("Failed to install the prometheus federator chart. Error: %v", err)
 		}
 	})
 })
