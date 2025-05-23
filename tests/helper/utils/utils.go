@@ -346,3 +346,43 @@ func ExtractTarGz(srcFile, destDir string) error {
 	}
 	return nil
 }
+
+// findProjectRoot searches upward for a directory containing markers like ".git" or "go.mod"
+func findProjectRoot(startDir string, markers []string) (string, error) {
+	dir := startDir
+	for {
+		for _, marker := range markers {
+			if _, err := os.Stat(filepath.Join(dir, marker)); err == nil {
+				return dir, nil
+			}
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break // reached filesystem root
+		}
+		dir = parent
+	}
+	return "", fmt.Errorf("project root not found (markers: %v)", markers)
+}
+
+// GetYamlPath returns the absolute path to a YAML file given its path relative to project root.
+// Panics on failure to simplify caller code.
+func GetYamlPath(relativeYamlPath string) string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		panic(fmt.Sprintf("failed to get current directory: %v", err))
+	}
+
+	root, err := findProjectRoot(cwd, []string{".git", "go.mod"})
+	if err != nil {
+		panic(fmt.Sprintf("failed to find project root: %v", err))
+	}
+
+	absPath := filepath.Join(root, relativeYamlPath)
+	absPath, err = filepath.Abs(absPath)
+	if err != nil {
+		panic(fmt.Sprintf("failed to get absolute path: %v", err))
+	}
+
+	return absPath
+}
