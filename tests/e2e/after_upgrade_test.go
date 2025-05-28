@@ -114,4 +114,43 @@ var _ = Describe("Observability Upgrade Test Suite", func() {
 			Skip("prometheus federator is not installed. Execute the pre-upgrade installation test before attempting the upgrade")
 		}
 	})
+
+	It("[QASE-3898] Upgrade logging chart to the Latest Version", Label("logging", "afterUpgrade"), func() {
+		testCaseID = 3898
+		By("Checking if the logging chart is already installed")
+		loggingChart, err := extencharts.GetChartStatus(clientWithSession, project.ClusterID, charts.RancherLoggingNamespace, charts.RancherLoggingName)
+		Expect(err).NotTo(HaveOccurred())
+
+		if loggingChart.IsAlreadyInstalled {
+			e2e.Logf("Logging chart is already installed in project: %v", exampleAppProjectName)
+			e2e.Logf("Retrieved logging chart version")
+			LoggingVersionChartList, err := clientWithSession.Catalog.GetListChartVersions(charts.RancherLoggingName, catalog.RancherChartRepo)
+			Expect(err).NotTo(HaveOccurred())
+			e2e.Logf("Chart List: %v", LoggingVersionChartList)
+			if len(LoggingVersionChartList) <= 1 {
+				Skip("No newer versions found for the logging chart to perform the upgrade")
+			}
+			latestLoggingVersion := LoggingVersionChartList[0]
+
+			loggingInstOpts := &charts.InstallOptions{
+				Cluster:   cluster,
+				Version:   latestLoggingVersion,
+				ProjectID: project.ID,
+			}
+
+			loggingOpts := &charts.RancherLoggingOpts{
+				AdditionalLoggingSources: true,
+			}
+
+			e2e.Logf("Retrieved latest logging chart version to install: %v", latestLoggingVersion)
+
+			By("Upgrading logging chart to the latest version")
+			err = charts.UpgradeRancherLoggingChart(clientWithSession, loggingInstOpts, loggingOpts)
+			if err != nil {
+				e2e.Failf("Failed to upgrade the logging chart. Error: %v", err)
+			}
+		} else {
+			Skip("Logging is not installed. Execute the pre-upgrade installation test before attempting the upgrade")
+		}
+	})
 })
