@@ -36,7 +36,7 @@ var _ = Describe("Observability Upgrade Test Suite", func() {
 		Expect(err).NotTo(HaveOccurred())
 	})
 
-	It("Uninstall Existing Observability Charts", Label("monitoring", "beforeUpgrade"), func() {
+	It("Uninstall Existing Observability Charts", Label("beforeUpgrade"), func() {
 		chartsToUninstall := []struct {
 			name      string
 			namespace string
@@ -44,6 +44,8 @@ var _ = Describe("Observability Upgrade Test Suite", func() {
 			{name: charts.RancherMonitoringName, namespace: charts.RancherMonitoringNamespace},
 			{name: charts.RancherMonitoringCRDName, namespace: charts.RancherMonitoringNamespace},
 			{name: charts.PrometheusFederatorName, namespace: charts.PrometheusFederatorNamespace},
+			{name: charts.RancherLoggingName, namespace: charts.RancherLoggingNamespace},
+			{name: charts.RancherLoggingCRDName, namespace: charts.RancherLoggingNamespace},
 		}
 
 		for _, chartInfo := range chartsToUninstall {
@@ -124,4 +126,37 @@ var _ = Describe("Observability Upgrade Test Suite", func() {
 			e2e.Failf("Failed to install the prometheus federator chart. Error: %v", err)
 		}
 	})
+
+	It("[QASE-3896] Install Logging chart One Older Version", Label("logging", "beforeUpgrade"), func() {
+		testCaseID = 3896
+
+		e2e.Logf("Getting Logging Older Version")
+		LoggingVersionChartList, err := clientWithSession.Catalog.GetListChartVersions(charts.RancherLoggingName, catalog.RancherChartRepo)
+		Expect(err).NotTo(HaveOccurred())
+		e2e.Logf("Chart List: %v", LoggingVersionChartList)
+
+		if len(LoggingVersionChartList) <= 1 {
+			Skip("Not enough older versions found for the Logging chart to proceed with installation")
+		}
+		loggingVersion := LoggingVersionChartList[1]
+
+		loggingInstOpts := &charts.InstallOptions{
+			Cluster:   cluster,
+			Version:   loggingVersion,
+			ProjectID: project.ID,
+		}
+
+		loggingOpts := &charts.RancherLoggingOpts{
+			AdditionalLoggingSources: true,
+		}
+
+		e2e.Logf("Retrieved logging chart version to install: %v", loggingVersion)
+
+		By(fmt.Sprintf("Installing logging chart with an %v version", loggingVersion))
+		err = charts.InstallRancherLoggingChart(clientWithSession, loggingInstOpts, loggingOpts)
+		if err != nil {
+			e2e.Failf("Failed to install the logging chart. Error: %v", err)
+		}
+	})
+
 })
