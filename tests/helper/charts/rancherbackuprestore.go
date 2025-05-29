@@ -31,17 +31,13 @@ import (
 )
 
 const (
-	RancherBackupRestoreNamespace     = "cattle-resources-system"
-	RancherBackupRestoreName          = "rancher-backup"
-	RancherBackupRestoreCRDName       = "rancher-backup-crd"
-	BackupRestoreConfigurationFileKey = "../../helper/yamls/inputBackupRestoreConfig.yaml"
-	localStorageClass                 = "../../helper/yamls/localStorageClass.yaml"
-	EncryptionConfigFilePath          = "../../helper/yamls/encrptionConfig.yaml"
-	EncryptionConfigAsteriskFilePath  = "../../helper/yamls/encrptionConfigwithAsterisk.yaml"
-	BackupSteveType                   = "resources.cattle.io.backup"
-	RestoreSteveType                  = "resources.cattle.io.restore"
-	resourceCount                     = 2
-	cniCalico                         = "calico"
+	RancherBackupRestoreNamespace = "cattle-resources-system"
+	RancherBackupRestoreName      = "rancher-backup"
+	RancherBackupRestoreCRDName   = "rancher-backup-crd"
+	BackupSteveType               = "resources.cattle.io.backup"
+	RestoreSteveType              = "resources.cattle.io.restore"
+	resourceCount                 = 2
+	cniCalico                     = "calico"
 )
 
 var (
@@ -52,6 +48,10 @@ var (
 			Verbs:     []string{"backupRole"},
 		},
 	}
+	BackupRestoreConfigurationFileKey = utils.GetYamlPath("tests/helper/yamls/inputBackupRestoreConfig.yaml")
+	localStorageClass                 = utils.GetYamlPath("tests/helper/yamls/localStorageClass.yaml")
+	EncryptionConfigFilePath          = utils.GetYamlPath("tests/helper/yamls/encrptionConfig.yaml")
+	EncryptionConfigAsteriskFilePath  = utils.GetYamlPath("tests/helper/yamls/encrptionConfigwithAsterisk.yaml")
 )
 
 type BackupOptions struct {
