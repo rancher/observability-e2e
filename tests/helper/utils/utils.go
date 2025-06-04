@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"text/template"
 
 	"github.com/creasty/defaults"
 	rancher "github.com/rancher/shepherd/clients/rancher"
@@ -385,4 +386,19 @@ func GetYamlPath(relativeYamlPath string) string {
 	}
 
 	return absPath
+}
+
+func GenerateYAMLFromTemplate(templateFile, outputFile string, data any) error {
+	tmpl, err := template.ParseFiles(templateFile)
+	if err != nil {
+		return err
+	}
+
+	output, err := os.Create(outputFile)
+	if err != nil {
+		return err
+	}
+	defer output.Close()
+
+	return tmpl.Execute(output, data)
 }
