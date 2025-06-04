@@ -3,9 +3,11 @@ kind: EncryptionConfiguration
 resources:
   - resources:
       - secrets
+      - configmaps
     providers:
       - aescbc:
           keys:
             - name: key1
               secret: "${encryption_secret_key}"
-      - identity: {}
+      - identity: {} # this fallback allows reading unencrypted secrets;
+                     # for example, during initial migration

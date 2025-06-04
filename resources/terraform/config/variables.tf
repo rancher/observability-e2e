@@ -44,6 +44,7 @@ variable "key_name" {
   description = "Key pair name for EC2"
   type        = string
   default     = "test"
+  sensitive   = true
 }
 
 variable "private_key_path" {
@@ -66,7 +67,7 @@ variable "prefix" {
 variable "rke2_version" {
   description = "RKE2 version to install"
   type        = string
-  default     = "v1.32.2+rke2r1"
+  default     = "v1.32.5+rke2r1"
 }
 
 variable "cert_manager_version" {
@@ -96,5 +97,24 @@ variable "input_cluster_config" {
 variable "preserve_eip" {
   description = "create the static eip and attach that to instance for migration scenario"
   type        = bool
-  default     = false
+  default     = true
+}
+variable "rancher_version" {
+  description = "version of rancher under test"
+}
+
+variable "rancher_password" {
+  description = "Bootstrap password for Rancher"
+  type        = string
+  sensitive   = true
+}
+variable "rancher_repo_url" {
+  description = "Helm repository URL to install Rancher"
+  type        = string
+}
+
+variable "install_rancher" {
+  type        = bool
+  default     = true
+  description = "Whether to install Rancher after installing RKE2"
 }

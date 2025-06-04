@@ -46,9 +46,23 @@ locals {
 resource "null_resource" "provision_rke2" {
   depends_on = [aws_instance.rke2_node]
 
+  # Transfer install_rke2.sh
   provisioner "file" {
     source      = "${path.module}/install_rke2.sh"
     destination = "/home/ubuntu/install_rke2.sh"
+
+    connection {
+      type        = "ssh"
+      user        = "ubuntu"
+      private_key = file(var.private_key_path)
+      host        = local.rke2_host_ip
+    }
+  }
+
+  # Transfer install_rancher.sh
+  provisioner "file" {
+    source      = "${path.module}/install_rancher.sh"
+    destination = "/home/ubuntu/install_rancher.sh"
 
     connection {
       type        = "ssh"
@@ -70,10 +84,12 @@ resource "null_resource" "provision_rke2" {
     }
   }
 
+  # Run scripts sequentially
   provisioner "remote-exec" {
     inline = [
-      "chmod +x /home/ubuntu/install_rke2.sh",
-      "sudo /home/ubuntu/install_rke2.sh ${var.rke2_version} ${var.cert_manager_version}"
+      "chmod +x /home/ubuntu/install_rke2.sh /home/ubuntu/install_rancher.sh",
+      "sudo -i bash /home/ubuntu/install_rke2.sh '${var.rke2_version}' '${var.cert_manager_version}' '${var.rancher_repo_url}'",
+      "sudo -i bash /home/ubuntu/install_rancher.sh '${var.rancher_version}' '${var.rancher_password}' '${var.rancher_repo_url}' '${var.install_rancher}'"
     ]
 
     connection {
@@ -82,6 +98,27 @@ resource "null_resource" "provision_rke2" {
       private_key = file(var.private_key_path)
       host        = local.rke2_host_ip
     }
+  }
+}
+
+resource "null_resource" "copy_kubeconfig" {
+  depends_on = [null_resource.provision_rke2]
+
+  provisioner "local-exec" {
+    command = "scp -i ${var.private_key_path} -o StrictHostKeyChecking=no ubuntu@${local.rke2_host_ip}:/tmp/rke2.yaml ./rke2-kubeconfig.yaml"
+  }
+}
+
+resource "null_resource" "move_kubeconfig_local" {
+  depends_on = [null_resource.copy_kubeconfig]
+
+  provisioner "local-exec" {
+    command = <<EOT
+      mkdir -p ~/.kube
+      mv ./rke2-kubeconfig.yaml ~/.kube/config
+      chmod 600 ~/.kube/config
+      echo "✅ kubeconfig placed at ~/.kube/config"
+    EOT
   }
 }
 
