@@ -23,10 +23,14 @@ module "ec2" {
   vpc_id                = module.vpc.vpc_id
   security_group_id     = module.vpc.security_group_id
   private_key_path      = var.private_key_path
-  preserve_eip          = false
+  preserve_eip          = var.preserve_eip
   rke2_version          = var.rke2_version
   cert_manager_version  = var.cert_manager_version
   encryption_secret_key = var.encryption_secret_key
   input_cluster_config  = var.input_cluster_config
   cattle_config         = var.cattle_config
+  rancher_password      = var.rancher_password
+  rancher_version       = var.rancher_version
+  rancher_repo_url      = var.rancher_repo_url
+  install_rancher       = var.install_rancher
 }

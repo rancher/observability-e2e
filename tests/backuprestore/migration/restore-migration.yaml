@@ -1,0 +1,16 @@
+apiVersion: resources.cattle.io/v1
+kind: Restore
+metadata:
+  name: restore-migration
+spec:
+  backupFilename: auto-backup-lwlug-a7245145-647c-4538-bd63-9c799192db94-2025-06-11T10-52-54Z.tar.gz.enc
+  prune: false
+  encryptionConfigSecretName: encryptionconfig
+  storageLocation:
+    s3:
+      credentialSecretName: s3-creds
+      credentialSecretNamespace: default
+      bucketName: backup-restore-automation-test-1749638685
+      folder: rancher-backups/
+      region: us-west-2
+      endpoint: s3.us-west-2.amazonaws.com

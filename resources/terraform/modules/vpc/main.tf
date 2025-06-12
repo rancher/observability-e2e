@@ -74,6 +74,13 @@ resource "aws_security_group" "rancher_sg_allowall" {
     cidr_blocks = [local.my_ip_cidr]
     description = "Allow SSH access"
   }
+  ingress {
+    from_port   = 6443
+    to_port     = 6443
+    protocol    = "tcp"
+    cidr_blocks = [local.my_ip_cidr]
+    description = "Allow Kubernetes API access"
+  }
 
   ingress {
     from_port   = 443
