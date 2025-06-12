@@ -113,6 +113,7 @@ jobs:
 
       - name: Run Installation Charts Tests For Backup and Restore
         id: run_installation_tests_backup_restore
+        if: matrix.tag != 'head'
         run: |
           set -e
           mv ./tests/helper/yamls/inputBackupRestoreConfig.yaml.example ./tests/helper/yamls/inputBackupRestoreConfig.yaml
@@ -120,7 +121,6 @@ jobs:
 
       - name: Run Observability Upgrade tests
         id: run_observability_upgrade_tests
-        if: matrix.tag != 'head'
         run: |
           set -e
           TEST_LABEL_FILTER=beforeUpgrade go test -timeout 20m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-upgrade-${{ matrix.tag }}.txt
