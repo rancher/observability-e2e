@@ -153,4 +153,48 @@ var _ = Describe("Observability Upgrade Test Suite", func() {
 			Skip("Logging is not installed. Execute the pre-upgrade installation test before attempting the upgrade")
 		}
 	})
+
+	It("[QASE-9138] Upgrade Rancher Alert chart to the Latest Version", Label("rancher-alert", "afterUpgrade"), func() {
+		testCaseID = 9138
+
+		By("Checking if the Rancher Alert chart is already installed")
+		initialAlertChart, err := extencharts.GetChartStatus(clientWithSession, project.ClusterID, charts.RancherAlertingNamespace, charts.RancherAlertingName)
+		Expect(err).NotTo(HaveOccurred())
+
+		if initialAlertChart.IsAlreadyInstalled {
+			e2e.Logf("Rancher Alert chart is already installed in project: %v", exampleAppProjectName)
+			e2e.Logf("Getting Rancher Alert Newer Version")
+			alertVersionChartList, err := clientWithSession.Catalog.GetListChartVersions(charts.RancherAlertingName, catalog.RancherChartRepo)
+			Expect(err).NotTo(HaveOccurred())
+			e2e.Logf("Chart List: %v", alertVersionChartList)
+
+			if len(alertVersionChartList) <= 1 {
+				Skip("No newer versions found for the Rancher Alert chart to perform the upgrade")
+			}
+
+			latestAlertVersion := alertVersionChartList[0]
+
+			alertInstallOptions := &charts.InstallOptions{
+				Cluster:   cluster,
+				Version:   latestAlertVersion,
+				ProjectID: project.ID,
+			}
+
+			alertOpts := &charts.RancherAlertingOpts{
+				SMS:   true,
+				Teams: false,
+			}
+
+			e2e.Logf("Retrieved latest Rancher Alert chart version to install: %v", latestAlertVersion)
+
+			By("Upgrading Rancher Alert chart to the latest version")
+			err = charts.InstallRancherAlertingChart(clientWithSession, alertInstallOptions, alertOpts)
+			if err != nil {
+				e2e.Failf("Failed to upgrade the Rancher Alert chart. Error: %v", err)
+			}
+		} else {
+			Skip("Rancher Alert is not installed. Execute the pre-upgrade installation test before attempting the upgrade")
+		}
+	})
+
 })

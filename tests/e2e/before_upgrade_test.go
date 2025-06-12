@@ -159,4 +159,37 @@ var _ = Describe("Observability Upgrade Test Suite", func() {
 		}
 	})
 
+	It(" [QASE-9137] Install an older version of the Rancher Alert Chart", Label("rancher-alert", "beforeUpgrade"), func() {
+		testCaseID = 9137
+		e2e.Logf("Getting Rancher Alert Older Version")
+		alertVersionChartList, err := clientWithSession.Catalog.GetListChartVersions(charts.RancherAlertingName, catalog.RancherChartRepo)
+		Expect(err).NotTo(HaveOccurred())
+		e2e.Logf("Chart List: %v", alertVersionChartList)
+
+		if len(alertVersionChartList) <= 1 {
+			Skip("Not enough older versions found for the Rancher Alert chart to proceed with installation")
+		}
+
+		alertVersion := alertVersionChartList[1]
+
+		alertInstallOptions := &charts.InstallOptions{
+			Cluster:   cluster,
+			Version:   alertVersion,
+			ProjectID: project.ID,
+		}
+
+		alertOpts := &charts.RancherAlertingOpts{
+			SMS:   true,
+			Teams: false,
+		}
+
+		e2e.Logf("Retrieved Rancher Alert chart version to install: %v", alertVersion)
+
+		By(fmt.Sprintf("Installing Rancher Alert chart with version %v", alertVersion))
+		err = charts.InstallRancherAlertingChart(clientWithSession, alertInstallOptions, alertOpts)
+		if err != nil {
+			e2e.Failf("Failed to install the Rancher Alert chart. Error: %v", err)
+		}
+	})
+
 })
