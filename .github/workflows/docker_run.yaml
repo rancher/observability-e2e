@@ -113,7 +113,6 @@ jobs:
 
       - name: Run Installation Charts Tests For Backup and Restore
         id: run_installation_tests_backup_restore
-        if: matrix.tag != 'head'
         run: |
           set -e
           mv ./tests/helper/yamls/inputBackupRestoreConfig.yaml.example ./tests/helper/yamls/inputBackupRestoreConfig.yaml

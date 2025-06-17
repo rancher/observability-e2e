@@ -215,6 +215,9 @@ func newBackupChartInstallAction(p *PayloadOpts, withStorage bool, rancherBackup
 				"size":         "2Gi", // Default size, can be modified
 				"storageClass": rancherBackupRestoreOpts.StorageClassName,
 			}
+			backupValues["securityContext"] = map[string]any{
+				"runAsNonRoot": false,
+			}
 
 		default:
 			fmt.Printf("Unsupported storage type: %s\n", storageType)
