@@ -40,8 +40,14 @@ var (
 )
 
 var _ = ReportAfterEach(func(report SpecReport) {
+	if testCaseID == 0 {
+		return
+	}
 	// Add result in Qase if asked
 	Qase(testCaseID, report)
+
+	// This prevents the ID from "leaking" into the next test's ReportAfterEach execution.
+	testCaseID = 0
 })
 
 func FailWithReport(message string, callerSkip ...int) {
