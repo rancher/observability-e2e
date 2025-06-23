@@ -47,3 +47,5 @@ install_rancher.sh.bk
 # Ignore CLI configuration files
 .terraformrc
 terraform.rc
+tests/backuprestore/migration/restore-migration.yaml
+resources/terraform/modules/ec2/encryption-provider-config.yaml

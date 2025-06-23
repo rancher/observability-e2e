@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -50,7 +51,7 @@ var (
 	}
 	BackupRestoreConfigurationFileKey = utils.GetYamlPath("tests/helper/yamls/inputBackupRestoreConfig.yaml")
 	localStorageClass                 = utils.GetYamlPath("tests/helper/yamls/localStorageClass.yaml")
-	EncryptionConfigFilePath          = utils.GetYamlPath("tests/helper/yamls/encrptionConfig.yaml")
+	EncryptionConfigFilePath          = utils.GetYamlPath("tests/helper/yamls/encryption-provider-config.yaml")
 	EncryptionConfigAsteriskFilePath  = utils.GetYamlPath("tests/helper/yamls/encrptionConfigwithAsterisk.yaml")
 )
 
@@ -75,6 +76,14 @@ type BackupParams struct {
 	BackupFileExtension string
 	Prune               bool
 	SecretsExists       bool
+}
+
+type MigrationYamlData struct {
+	BackupFilename string
+	BucketName     string
+	Folder         string
+	Region         string
+	Endpoint       string
 }
 
 // InstallRancherBackupRestoreChart installs the Rancher backup/restore chart with optional storage configuration.
@@ -567,7 +576,7 @@ func SelectResourceSetName(clientWithSession *rancher.Client, params *BackupOpti
 		return err
 	}
 	if ok {
-		params.ResourceSetName = "rancher-resource-set-basic"
+		params.ResourceSetName = "rancher-resource-set-full"
 	} else {
 		params.ResourceSetName = "rancher-resource-set"
 	}
@@ -618,4 +627,44 @@ func WaitForDeploymentsCleanup(client *rancher.Client, clusterID string, namespa
 			}
 		}
 	}
+}
+
+// DownloadAndExtractRancherCharts downloads and extracts Rancher charts from the given branch.
+// It always extracts to a fixed directory, replacing any previous contents.
+func DownloadAndExtractRancherCharts(branch string) (string, error) {
+	// Define a fixed extraction directory
+	baseDir := os.TempDir() // works cross-platform
+	extractDir := filepath.Join(baseDir, "rancher-charts-extracted")
+
+	// If directory exists, delete it first
+	if _, err := os.Stat(extractDir); err == nil {
+		if err := os.RemoveAll(extractDir); err != nil {
+			return "", fmt.Errorf("failed to remove previous charts dir: %w", err)
+		}
+	}
+
+	if err := os.MkdirAll(extractDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create extract dir: %w", err)
+	}
+
+	// GitHub archive URL
+	url := fmt.Sprintf("https://github.com/rancher/charts/tarball/%s", branch)
+
+	// Download and extract
+	cmd := exec.Command("sh", "-c", fmt.Sprintf("curl -Ls %s | tar -xz -C %s", url, extractDir))
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("failed to download/extract charts: %v\n%s", err, output)
+	}
+
+	e2e.Logf("✅ Rancher charts extracted to: %s\n", extractDir)
+
+	// Find the actual extracted directory (Rancher creates one inside)
+	files, err := os.ReadDir(extractDir)
+	if err != nil || len(files) == 0 {
+		return "", fmt.Errorf("extracted directory is empty or unreadable: %w", err)
+	}
+
+	extractedPath := filepath.Join(extractDir, files[0].Name())
+	return extractedPath, nil
 }

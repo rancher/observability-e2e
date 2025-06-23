@@ -1,0 +1,16 @@
+apiVersion: resources.cattle.io/v1
+kind: Restore
+metadata:
+  name: restore-migration
+spec:
+  backupFilename: {{ .BackupFilename }}
+  prune: false
+  encryptionConfigSecretName: encryptionconfig
+  storageLocation:
+    s3:
+      credentialSecretName: s3-creds
+      credentialSecretNamespace: default
+      bucketName: {{ .BucketName }}
+      folder: {{ .Folder }}
+      region: {{ .Region }}
+      endpoint: {{ .Endpoint }}

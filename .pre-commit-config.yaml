@@ -43,3 +43,10 @@ repos:
         entry: go mod tidy
         files: ^go\.mod$|^go\.sum$
         stages: [manual]
+
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.77.1  # Check for latest tag at https://github.com/antonbabenko/pre-commit-terraform/releases
+    hooks:
+      - id: terraform_fmt         # Formats Terraform code using terraform fmt -recursive
+      - id: terraform_validate    # Validates Terraform configuration
+      - id: terraform_docs        # Updates README.md with module docs (if using modules)
