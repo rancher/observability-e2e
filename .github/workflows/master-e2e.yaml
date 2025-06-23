@@ -97,6 +97,12 @@ jobs:
             --port 22 \
             --cidr ${MY_PUBLIC_IP}/32 > /dev/null 2>&1
 
+          aws ec2 authorize-security-group-ingress \
+            --group-id $SECURITY_GROUP_ID \
+            --protocol tcp \
+            --port 443 \
+            --cidr ${MY_PUBLIC_IP}/32 > /dev/null 2>&1
+
       - name: Provision EC2 Instance
         id: provision_ec2
         run: |
@@ -199,6 +205,10 @@ jobs:
               echo 'Rancher installation complete.'
             "
           EOF
+
+      - name: Verify Rancher Availability
+        run: |
+          curl --fail --insecure --silent --show-error "https://rancher.${{ steps.get_ip.outputs.PUBLIC_IP }}.sslip.io" > /dev/null
 
   pre-qase:
     needs: [setup]
@@ -371,8 +381,19 @@ jobs:
           name: test-artifacts
           path: ~/artifacts
 
+      - name: Check Test Results and Mark Pipeline
+        if: always()
+        run: |
+          for log_file in ~/artifacts/test-output-installation.txt ~/artifacts/test-output-e2e.txt; do
+            if [[ -f "$log_file" ]] && grep -q "FAIL" "$log_file"; then
+              echo "$(basename "$log_file") contains failures!"
+              exit 1
+            fi
+          done
+
   post-qase:
-    if: ${{ always() && needs.pre-qase.outputs.qase_run_id != '' }}
+    # MODIFIED: This job will now only run if the dependent jobs succeeded or failed, but NOT if they were skipped.
+    if: ${{ (success() || failure()) && needs.pre-qase.outputs.qase_run_id != '' }}
     needs: [run-e2e, pre-qase]
     runs-on: ubuntu-latest
     env:
