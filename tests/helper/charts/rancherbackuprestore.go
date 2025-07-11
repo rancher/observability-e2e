@@ -20,6 +20,8 @@ import (
 	"github.com/rancher/shepherd/clients/rancher/catalog"
 	management "github.com/rancher/shepherd/clients/rancher/generated/management/v3"
 	v1 "github.com/rancher/shepherd/clients/rancher/v1"
+	"github.com/rancher/shepherd/extensions/charts"
+	"github.com/rancher/shepherd/extensions/clusters"
 	"github.com/rancher/shepherd/extensions/users"
 	"github.com/rancher/shepherd/pkg/api/steve/catalog/types"
 	namegen "github.com/rancher/shepherd/pkg/namegenerator"
@@ -667,4 +669,61 @@ func DownloadAndExtractRancherCharts(branch string) (string, error) {
 
 	extractedPath := filepath.Join(extractDir, files[0].Name())
 	return extractedPath, nil
+}
+
+func InstallLatestBackupRestoreChart(
+	client *rancher.Client,
+	project *management.Project,
+	clusterID *clusters.ClusterMeta,
+	storageType string,
+	secretName string,
+	backupRestoreConfig *localConfig.BackupRestoreConfig,
+) error {
+
+	latestVersion, err := client.Catalog.GetLatestChartVersion(RancherBackupRestoreName, catalog.RancherChartRepo)
+	if err != nil {
+		return fmt.Errorf("failed to get latest chart version: %w", err)
+	}
+	latestVersion = utils.GetEnvOrDefault("BACKUP_RESTORE_CHART_VERSION", latestVersion)
+
+	e2e.Logf("Installing backup-restore chart version: %s", latestVersion)
+
+	installOpts := &InstallOptions{
+		Cluster:   clusterID,
+		Version:   latestVersion,
+		ProjectID: project.ID,
+	}
+	restoreOpts := &RancherBackupRestoreOpts{
+		VolumeName:                backupRestoreConfig.VolumeName,
+		StorageClassName:          backupRestoreConfig.StorageClassName,
+		BucketName:                backupRestoreConfig.S3BucketName,
+		CredentialSecretName:      secretName,
+		CredentialSecretNamespace: backupRestoreConfig.CredentialSecretNamespace,
+		Enabled:                   true,
+		Endpoint:                  backupRestoreConfig.S3Endpoint,
+		Folder:                    backupRestoreConfig.S3FolderName,
+		Region:                    backupRestoreConfig.S3Region,
+	}
+
+	if err := InstallRancherBackupRestoreChart(client, installOpts, restoreOpts, true, storageType); err != nil {
+		return fmt.Errorf("chart install/upgrade failed: %w", err)
+	}
+
+	// Wait for deployments
+	errDeployChan := make(chan error, 1)
+	go func() {
+		err := charts.WatchAndWaitDeployments(client, project.ClusterID, RancherBackupRestoreNamespace, metav1.ListOptions{})
+		errDeployChan <- err
+	}()
+
+	select {
+	case err := <-errDeployChan:
+		if err != nil {
+			return fmt.Errorf("deployment verification failed: %w", err)
+		}
+	case <-time.After(2 * time.Minute):
+		return fmt.Errorf("timeout waiting for chart deployment to complete")
+	}
+
+	return nil
 }
