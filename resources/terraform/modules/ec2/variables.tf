@@ -22,7 +22,7 @@ variable "rancher_version" {
 variable "rancher_password" {
   description = "Bootstrap password for Rancher"
   type        = string
-  sensitive   = false
+  sensitive   = true
 }
 variable "rancher_repo_url" {
 }
