@@ -678,19 +678,19 @@ func InstallLatestBackupRestoreChart(
 	storageType string,
 	secretName string,
 	backupRestoreConfig *localConfig.BackupRestoreConfig,
+	chartVersion string,
 ) error {
-
-	latestVersion, err := client.Catalog.GetLatestChartVersion(RancherBackupRestoreName, catalog.RancherChartRepo)
-	if err != nil {
-		return fmt.Errorf("failed to get latest chart version: %w", err)
+	var err error
+	if chartVersion == "" {
+		chartVersion, err = client.Catalog.GetLatestChartVersion(RancherBackupRestoreName, catalog.RancherChartRepo)
+		if err != nil {
+			return fmt.Errorf("failed to get latest chart version: %w", err)
+		}
 	}
-	latestVersion = utils.GetEnvOrDefault("BACKUP_RESTORE_CHART_VERSION", latestVersion)
-
-	e2e.Logf("Installing backup-restore chart version: %s", latestVersion)
-
+	e2e.Logf("Installing backup-restore chart version: %s", chartVersion)
 	installOpts := &InstallOptions{
 		Cluster:   clusterID,
-		Version:   latestVersion,
+		Version:   chartVersion,
 		ProjectID: project.ID,
 	}
 	restoreOpts := &RancherBackupRestoreOpts{
