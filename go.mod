@@ -19,6 +19,7 @@ require (
 	github.com/gruntwork-io/terratest v0.45.0
 	github.com/onsi/ginkgo/v2 v2.20.2
 	github.com/onsi/gomega v1.34.2
+	github.com/rancher-sandbox/ele-testhelpers v0.0.0-20231206161614-20a517410736
 	github.com/rancher-sandbox/qase-ginkgo v1.0.1
 	github.com/rancher/backup-restore-operator v1.2.1
 	github.com/rancher/rancher v0.0.0-00010101000000-000000000000
@@ -44,6 +45,7 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bgentry/go-netrc v0.0.0-20140422174119-9fd32a8b3d3d // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
+	github.com/bramvdbogaerde/go-scp v1.2.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/chai2010/gettext-go v1.0.2 // indirect
 	github.com/creack/pty v1.1.20 // indirect
@@ -132,6 +134,8 @@ require (
 	go.opencensus.io v0.24.0 // indirect
 	go.qase.io/client v0.0.0-20231114201952-65195ec001fa // indirect
 	go.starlark.net v0.0.0-20231101134539-556fd59b42f6 // indirect
+	go.uber.org/multierr v1.11.0 // indirect
+	go.uber.org/zap v1.26.0 // indirect
 	golang.org/x/crypto v0.27.0 // indirect
 	golang.org/x/net v0.29.0 // indirect
 	golang.org/x/oauth2 v0.23.0 // indirect
@@ -160,6 +164,7 @@ require (
 	k8s.io/kube-aggregator v0.30.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20240411171206-dc4e619f62f3 // indirect
 	k8s.io/pod-security-admission v0.30.1 // indirect
+	libvirt.org/libvirt-go-xml v7.4.0+incompatible // indirect
 	sigs.k8s.io/cli-utils v0.35.0 // indirect
 	sigs.k8s.io/cluster-api v1.7.3 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
