@@ -28,18 +28,6 @@ variable "aws_zone" {
   default     = "us-east-2a"
 }
 
-variable "ami_id" {
-  description = "AMI ID for the EC2 instance"
-  type        = string
-  default     = "ami-00eb69d236edcfaf8"
-}
-
-variable "instance_type" {
-  description = "Type of EC2 instance"
-  type        = string
-  default     = "t2.2xlarge"
-}
-
 variable "key_name" {
   description = "Key pair name for EC2"
   type        = string
@@ -98,6 +86,7 @@ variable "preserve_eip" {
   type        = bool
   default     = true
 }
+
 variable "rancher_version" {
   description = "version of rancher under test"
 }
@@ -107,6 +96,7 @@ variable "rancher_password" {
   type        = string
   sensitive   = true
 }
+
 variable "rancher_repo_url" {
   description = "Helm repository URL to install Rancher"
   type        = string
@@ -116,4 +106,10 @@ variable "install_rancher" {
   type        = bool
   default     = true
   description = "Whether to install Rancher after installing RKE2"
+}
+
+variable "architecture" {
+  description = "Target architecture (x86 or arm)"
+  type        = string
+  default     = "x86"
 }

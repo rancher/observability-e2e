@@ -11,8 +11,15 @@ echo "🔐 Installing Cert Manager version: $CERT_MANAGER_VERSION"
 
 sudo add-apt-repository -y universe
 sudo apt-get update -qq && sudo apt-get install -y -qq jq curl
-sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 && sudo chmod +x /usr/local/bin/yq
 
+# Replace yq download for ARM64
+ARCH=$(uname -m)
+if [[ "$ARCH" == "aarch64" ]]; then
+    YQ_BINARY="yq_linux_arm64"
+else
+    YQ_BINARY="yq_linux_amd64"
+fi
+sudo wget -qO /usr/local/bin/yq "https://github.com/mikefarah/yq/releases/latest/download/${YQ_BINARY}" && sudo chmod +x /usr/local/bin/yq
 
 # Install RKE2
 export INSTALL_RKE2_VERSION="$RKE2_VERSION"
@@ -37,17 +44,16 @@ mkdir -p ~/.kube
 ln -sf /etc/rancher/rke2/rke2.yaml ~/.kube/config
 ln -sf /var/lib/rancher/rke2/bin/kubectl /usr/local/bin/kubectl
 
-# Install Helm
+# Install Helm (auto-detects arch)
 curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
 chmod +x get_helm.sh
 ./get_helm.sh
 rm -f get_helm.sh
 
-# Add cert-manager repo and install
+# Add cert-manager and Rancher Helm repos
 helm repo add jetstack https://charts.jetstack.io
 helm repo update
 
-# Add Helm repo for Rancher
 helm repo add rancher "$HELM_REPO_URL"
 helm repo update
 

@@ -64,7 +64,7 @@ else
 fi
 
 # Wait for Rancher to start
-sleep 180
+sleep 90
 
 # Post-install setup
 RANCHER_URL="https://${RANCHER_HOSTNAME}"
