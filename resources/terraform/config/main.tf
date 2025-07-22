@@ -14,8 +14,8 @@ module "s3" {
 module "ec2" {
   source = "../modules/ec2"
 
-  ami_id                = var.ami_id
-  instance_type         = var.instance_type
+  ami_id                = local.ami_id
+  instance_type         = local.instance_type
   key_name              = var.key_name
   root_volume_size      = var.root_volume_size
   prefix                = var.prefix

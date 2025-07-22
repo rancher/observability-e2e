@@ -186,6 +186,15 @@ var _ = DescribeTable("Test: Validate the Backup and Restore Upgrade and Rollbac
 		)
 		Expect(err).NotTo(HaveOccurred(), "Failed to create secret for backup and restore")
 
+		By("scale down the rancher so that restore process can be started")
+		_, err = localkubectl.Execute(
+			"scale", "deployment", "rancher", "-n",
+			"cattle-system",
+			"--replicas=0",
+		)
+		Expect(err).NotTo(HaveOccurred(), "Scale down the deployment to 0, so restore will be started")
+		time.Sleep(1 * time.Minute)
+
 		By("create the restore-migation yaml and apply it")
 		migrationYamlData := charts.MigrationYamlData{
 			BackupFilename: filename,
