@@ -12,7 +12,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package migration
+package migration_rollaback
 
 import (
 	"fmt"
@@ -48,7 +48,7 @@ type MigrationParams struct {
 	EncryptionConfigFilePath string
 }
 
-var clusterName string
+var clusterNameMigration string
 
 var _ = DescribeTable("Test: Validate the Backup and Restore Migration Scenario from RKE2 to RKE2",
 	func(params MigrationParams) {
@@ -84,20 +84,19 @@ var _ = DescribeTable("Test: Validate the Backup and Restore Migration Scenario 
 		e2e.Logf("%v, %v, %v", userList, projList, roleList)
 		Expect(err).NotTo(HaveOccurred())
 
-		DeferCleanup(func() {
-			By("Delete the downstream clusters as part of cleanup")
-			err = resources.DeleteCluster(client, clusterName)
+		utils.SafeCleanup("Deleting the downstream clusters as part of cleanup", func() {
+			err := resources.DeleteCluster(client, clusterNameMigration)
 			Expect(err).NotTo(HaveOccurred())
 		})
+
 		if params.CreateCluster == true {
 			By("Provisioning a downstream RKE2 cluster...")
-			clusterName, err = resources.CreateRKE2Cluster(clientWithSession, CloudCredentialName)
+			clusterNameMigration, err = resources.CreateRKE2Cluster(clientWithSession, CloudCredentialName)
 			Expect(err).NotTo(HaveOccurred())
 		}
 
-		DeferCleanup(func() {
-			By(fmt.Sprintf("Deleting required resources used for the storage type: %s testing", params.StorageType))
-			err = charts.DeleteStorageResources(params.StorageType, clientWithSession, BackupRestoreConfig)
+		utils.SafeCleanup(fmt.Sprintf("Deleting resources used for storage type: %s", params.StorageType), func() {
+			err := charts.DeleteStorageResources(params.StorageType, clientWithSession, BackupRestoreConfig)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -168,7 +167,7 @@ var _ = DescribeTable("Test: Validate the Backup and Restore Migration Scenario 
 		By("As backup is present we can remove/clean the instance for migration")
 		_, err = tfCtx.DestroyTarget("module.ec2.aws_instance.rke2_node")
 		if err != nil {
-			e2e.Logf("Remove rke2_node destroy failed:")
+			e2e.Failf("Remove rke2_node destroy failed:")
 		}
 		By("Old server is destroyed, will spin up new machine and start restoring the backup")
 		tfCtx.Options.Vars["install_rancher"] = false
@@ -190,7 +189,11 @@ var _ = DescribeTable("Test: Validate the Backup and Restore Migration Scenario 
 
 		// Todo Add the way to fetch the rancher version pass to install it
 		By("Checkout the charts repo based on the rancher upstream version ")
-		rancherVersion := tfCtx.Options.Vars["rancher_version"].(string)
+		rancherVersion := os.Getenv("RANCHER_VERSION")
+		tfctRancherVersion := tfCtx.Options.Vars["rancher_version"].(string)
+
+		e2e.Logf("%s", "rancher Version "+rancherVersion)
+		e2e.Logf("%s", "terraform rancher Version "+tfctRancherVersion)
 		branch := "dev-" + strings.Join(strings.Split(rancherVersion, ".")[:2], ".")
 		chartDir, err := charts.DownloadAndExtractRancherCharts(branch)
 		Expect(err).NotTo(HaveOccurred(), "Failed to download and extract repo")
@@ -233,6 +236,7 @@ var _ = DescribeTable("Test: Validate the Backup and Restore Migration Scenario 
 			"restore-migration.yaml",
 			migrationYamlData,
 		)
+		Expect(err).NotTo(HaveOccurred(), "Failed to create restore-migration file")
 
 		_, err = localkubectl.Execute("apply", "-f", "restore-migration.yaml")
 		Expect(err).NotTo(HaveOccurred(), "Failed to apply the Restore Migration Process")
@@ -259,9 +263,9 @@ var _ = DescribeTable("Test: Validate the Backup and Restore Migration Scenario 
 		config.UpdateConfig(rancher.ConfigurationFileKey, rancherConfig)
 
 		By("Veriy that the downstream clusters are showing up correctly")
-		err = resources.VerifyCluster(clientWithSession, clusterName)
+		err = resources.VerifyCluster(clientWithSession, clusterNameMigration)
 		if err != nil {
-			e2e.Logf("cluster %s is not Active", clusterName)
+			e2e.Failf("cluster %s is not Active", clusterNameMigration)
 		}
 		Expect(err).NotTo(HaveOccurred(), "Downstream Cluster is not getting Active. ")
 	},
