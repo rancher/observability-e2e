@@ -1,4 +1,4 @@
-name: (template) Rancher Backup-Restore Migration tests
+name: (template) Rancher Backup-Restore Migration/Upgrade/Rollback tests
 
 on:
   workflow_call:
@@ -30,8 +30,17 @@ on:
         description: Rancher Manager version
         type: string
         required: true
+      rollback_rancher_version:
+        description: Needs the base Rancher version from while upgrade and rollback will happen (rollback_rancher_version)
+        type: string
+        required: true
       upstream_cluster_version:
         description: Rancher (RKE2) version
+        default: v1.32.5+rke2r1
+        type: string
+        required: true
+      rollback_upstream_cluster_version:
+        description: Needs the common RKE2 version supported by upgrade and rollback of rancher (rollback_upstream_cluster_version)
         default: v1.32.5+rke2r1
         type: string
         required: true
@@ -41,6 +50,11 @@ on:
         type: boolean
       rancher_repo:
         description: Rancher Manager repository
+        default: https://releases.rancher.com/server-charts/latest
+        type: string
+        required: true
+      rollback_rancher_repo:
+        description: Needs the base Rancher's repo url (rollback_rancher_repo)
         default: https://releases.rancher.com/server-charts/latest
         type: string
         required: true
@@ -92,13 +106,47 @@ jobs:
             echo "Bucket $bucket_name already exists, skipping creation."
           fi
 
-  run-migration-tests:
-    needs: [setup]
+  run-migration-upgrade-rollback-tests:
+    needs: setup
     runs-on: ubuntu-latest
+    continue-on-error: true
+    strategy:
+      max-parallel: 1  # Ensure matrix jobs run serially
+      fail-fast: false
+      matrix:
+        include:
+          - test_label: migration
+            rancher_version: ${{ inputs.rancher_version }}
+            upstream_cluster_version: ${{ inputs.upstream_cluster_version }}
+            upgrade_rancher_version: ""
+            upgrade_rancher_repo_url: ""
+            rancher_repo_url: ${{ inputs.rancher_repo }}
+            backup_restore_chart_version: ${{ inputs.backup_restore_chart_version }}
+
+          - test_label: upgrade_rollback
+            rancher_version: ${{ inputs.rollback_rancher_version }}
+            upstream_cluster_version: ${{ inputs.rollback_upstream_cluster_version }}
+            upgrade_rancher_version: ${{ inputs.rancher_version }}
+            upgrade_rancher_repo_url: ${{ inputs.rancher_repo }}
+            rancher_repo_url: ${{ inputs.rollback_rancher_repo }}
+            backup_restore_chart_version: ""
+
+          - test_label: upgrade_rollback_migration
+            rancher_version: ${{ inputs.rollback_rancher_version }}
+            upstream_cluster_version: ${{ inputs.rollback_upstream_cluster_version }}
+            upgrade_rancher_version: ${{ inputs.rancher_version }}
+            upgrade_rancher_repo_url: ${{ inputs.rancher_repo }}
+            rancher_repo_url:  ${{ inputs.rollback_rancher_repo }}
+            backup_restore_chart_version: ""
+    name: Run ${{ matrix.test_label }} Tests
     env:
       # Rancher environment
-      RANCHER_VERSION: ${{ inputs.rancher_version }}
-      UPSTREAM_CLUSTER_VERSION: ${{ inputs.upstream_cluster_version }}
+      RANCHER_VERSION: ${{ matrix.rancher_version }}
+      UPSTREAM_CLUSTER_VERSION: ${{ matrix.upstream_cluster_version }}
+      UPGRADE_RANCHER_VERSION: ${{ matrix.upgrade_rancher_version }}
+      UPGRADE_RANCHER_REPO_URL: ${{ matrix.upgrade_rancher_repo_url }}
+      RANCHER_REPO_URL: ${{ matrix.rancher_repo_url }}
+      BACKUP_RESTORE_CHART_VERSION: ${{ matrix.backup_restore_chart_version }}
 
     steps:
       - name: Install yq
@@ -161,14 +209,14 @@ jobs:
           yq -i '.secretKey = "${{ secrets.aws_secret_key }}"' \
             "$GITHUB_WORKSPACE/tests/helper/yamls/inputBackupRestoreConfig.yaml"
 
-      - name: Run Backup Restore Migration Tests
-        id: go-run-migration-tests
+      - name: Run Backup Restore ${{ matrix.test_label }} Tests
+        id: go-run-tests
         run: |
           set -o pipefail
           mv $GITHUB_WORKSPACE/cattle-config.yaml.example $GITHUB_WORKSPACE/cattle-config.yaml
           CATTLE_TEST_CONFIG=$GITHUB_WORKSPACE/cattle-config.yaml \
-          TEST_LABEL_FILTER=migration \
-          go test -timeout 60m github.com/rancher/observability-e2e/tests/backuprestore/migration -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-e2e.txt
+          TEST_LABEL_FILTER=${{ matrix.test_label }} \
+          go test -timeout 60m github.com/rancher/observability-e2e/tests/backuprestore/migration_rollback/ -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-e2e.txt
 
       - name: Cleanup temporary files
         if: ${{ always() }}
@@ -178,12 +226,12 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: test-artifacts
+          name: test-artifacts-${{ matrix.test_label }}
           path: ~/artifacts
 
   delete-resources:
     if: ${{ always() && inputs.destroy_runner == true }}
-    needs: [setup, run-migration-tests]
+    needs: [setup, run-migration-upgrade-rollback-tests]
     runs-on: ubuntu-latest
 
     steps:
