@@ -32,6 +32,8 @@ import (
 	"github.com/rancher-sandbox/ele-testhelpers/tools"
 )
 
+const password = "rancherpassword"
+
 var _ = Describe("E2E - Install Rancher Manager", Label("install"), Ordered, func() {
 	k := &kubectl.Kubectl{
 		Namespace:    "",
@@ -177,8 +179,6 @@ var _ = Describe("E2E - Install Rancher Manager", Label("install"), Ordered, fun
 			var err error
 			url := "https://localhost/v3-public/localProviders/local?action=login"
 			username := "admin"
-			password := os.Getenv("PASSWORD")
-			Expect(password).ToNot(BeEmpty(), "PASSWORD env var must be set")
 
 			for i := 0; i < 3; i++ {
 				payload := fmt.Sprintf(`{"username":"%s","password":"%s"}`, username, password)
