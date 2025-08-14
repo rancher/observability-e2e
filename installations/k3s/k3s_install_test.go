@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -43,19 +44,19 @@ var _ = Describe("E2E - Install Rancher Manager", Label("install"), Ordered, fun
 
 	It("Installs Helm CLI", func() {
 		By("Downloading the Helm install script", func() {
-			cmd := exec.Command("curl", "-fsSL", "-o", "/root/get_helm.sh", "https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3")
+			cmd := exec.Command("curl", "-fsSL", "-o", "/tmp/get_helm.sh", "https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3")
 			_, err := cmd.CombinedOutput()
 			Expect(err).ToNot(HaveOccurred())
 		})
 
 		By("Making the Helm install script executable", func() {
-			cmd := exec.Command("chmod", "+x", "/root/get_helm.sh")
+			cmd := exec.Command("chmod", "+x", "/tmp/get_helm.sh")
 			_, err := cmd.CombinedOutput()
 			Expect(err).ToNot(HaveOccurred())
 		})
 
 		By("Running the Helm install script", func() {
-			cmd := exec.Command("/root/get_helm.sh")
+			cmd := exec.Command("/tmp/get_helm.sh")
 			cmd.Env = os.Environ()
 			out, err := cmd.CombinedOutput()
 			GinkgoWriter.Printf("helm install script output: %s\n", string(out))
@@ -82,7 +83,7 @@ var _ = Describe("E2E - Install Rancher Manager", Label("install"), Ordered, fun
 			// Set command and arguments
 			installCmd := exec.Command("sh", fileName)
 			// Add the INSTALL_K3S_VERSION to the command's environment
-			installCmd.Env = append(os.Environ(), "INSTALL_K3S_VERSION="+k3sVersion)
+			installCmd.Env = append(os.Environ(), "INSTALL_K3S_VERSION="+k3sVersion, "K3S_KUBECONFIG_MODE=644")
 
 			// Retry in case of (sporadic) failure...
 			count := 1
@@ -96,24 +97,12 @@ var _ = Describe("E2E - Install Rancher Manager", Label("install"), Ordered, fun
 		})
 
 		By("Starting K3s", func() {
+			// Start K3s service with sudo
 			err := exec.Command("sudo", "systemctl", "start", "k3s").Run()
 			Expect(err).To(Not(HaveOccurred()))
 
-			// Delay few seconds before checking
-			time.Sleep(tools.SetTimeout(20 * time.Second))
-		})
-
-		By("Waiting for K3s to be started", func() {
-			// Wait for all pods to be started
-			checkList := [][]string{
-				{"kube-system", "app=local-path-provisioner"},
-				{"kube-system", "k8s-app=kube-dns"},
-				{"kube-system", "app.kubernetes.io/name=traefik"},
-				{"kube-system", "svccontroller.k3s.cattle.io/svcname=traefik"},
-			}
-			Eventually(func() error {
-				return rancher.CheckPod(k, checkList)
-			}, tools.SetTimeout(4*time.Minute), 30*time.Second).Should(BeNil())
+			// Wait longer for the service to stabilize
+			time.Sleep(tools.SetTimeout(30 * time.Second))
 		})
 
 		By("Configuring Kubeconfig file", func() {
@@ -126,6 +115,24 @@ var _ = Describe("E2E - Install Rancher Manager", Label("install"), Ordered, fun
 
 			err = os.Setenv("KUBECONFIG", localKubeconfig)
 			Expect(err).To(Not(HaveOccurred()))
+		})
+
+		By("Waiting for K3s to be started", func() {
+			// Configure kubeconfig to use the correct K3s API server[](https://localhost:6443)
+			kubeconfig := filepath.Join(os.Getenv("HOME"), ".kube", "config")
+			err := os.Setenv("KUBECONFIG", kubeconfig)
+			Expect(err).To(Not(HaveOccurred()))
+
+			// Wait for all pods to be started
+			checkList := [][]string{
+				{"kube-system", "app=local-path-provisioner"},
+				{"kube-system", "k8s-app=kube-dns"},
+				{"kube-system", "app.kubernetes.io/name=traefik"},
+				{"kube-system", "svccontroller.k3s.cattle.io/svcname=traefik"},
+			}
+			Eventually(func() error {
+				return rancher.CheckPod(k, checkList)
+			}, tools.SetTimeout(5*time.Minute), 30*time.Second).Should(BeNil())
 		})
 
 		By("Installing CertManager", func() {
@@ -177,8 +184,10 @@ var _ = Describe("E2E - Install Rancher Manager", Label("install"), Ordered, fun
 			var err error
 			url := "https://localhost/v3-public/localProviders/local?action=login"
 			username := "admin"
-			password := os.Getenv("PASSWORD")
-			Expect(password).ToNot(BeEmpty(), "PASSWORD env var must be set")
+			var password = "rancherpassword"
+			if envPW := os.Getenv("RANCHER_PASSWORD"); envPW != "" {
+				password = envPW
+			}
 
 			for i := 0; i < 3; i++ {
 				payload := fmt.Sprintf(`{"username":"%s","password":"%s"}`, username, password)

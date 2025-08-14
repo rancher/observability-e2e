@@ -1,4 +1,4 @@
-name: Rancher Setup, Chart Installation & E2E Tests
+name: Docker Rancher Setup, Chart Installation & E2E Tests
 
 on:
   push:
@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        tag: ['v2.8-head', 'v2.9-head', 'v2.10-head', 'v2.11-head', 'head'] # Rancher version tags
+        tag: ['v2.10-head', 'v2.11-head', 'v2.12-head', 'head'] # Rancher version tags
       fail-fast: false
 
     steps:
