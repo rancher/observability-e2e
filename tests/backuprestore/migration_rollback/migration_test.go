@@ -30,11 +30,9 @@ import (
 	"github.com/rancher/observability-e2e/tests/helper/utils"
 	"github.com/rancher/rancher/tests/v2/actions/pipeline"
 	"github.com/rancher/shepherd/clients/rancher"
-	"github.com/rancher/shepherd/clients/rancher/catalog"
 	extencharts "github.com/rancher/shepherd/extensions/charts"
 	"github.com/rancher/shepherd/pkg/config"
 	namegen "github.com/rancher/shepherd/pkg/namegenerator"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	e2e "k8s.io/kubernetes/test/e2e/framework"
 )
 
@@ -101,47 +99,19 @@ var _ = DescribeTable("Test: Validate the Backup and Restore Migration Scenario 
 		})
 
 		// Get the latest version of the backup restore chart
-		if !initialBackupRestoreChart.IsAlreadyInstalled {
-			latestBackupRestoreVersion, err := clientWithSession.Catalog.GetLatestChartVersion(charts.RancherBackupRestoreName, catalog.RancherChartRepo)
-			Expect(err).NotTo(HaveOccurred())
-			e2e.Logf("Retrieved latest backup-restore chart version to install: %v", latestBackupRestoreVersion)
-			latestBackupRestoreVersion = utils.GetEnvOrDefault("BACKUP_RESTORE_CHART_VERSION", latestBackupRestoreVersion)
-			backuprestoreInstOpts := &charts.InstallOptions{
-				Cluster:   cluster,
-				Version:   latestBackupRestoreVersion,
-				ProjectID: project.ID,
-			}
+		By("Update the rancher to use the latest backup and restore chart")
+		time.Sleep(3 * time.Minute)
+		_, err = charts.InstallLatestBackupRestoreChart(
+			clientWithSession,
+			project,
+			cluster,
+			params.StorageType,
+			secretName,
+			BackupRestoreConfig,
+			utils.GetEnvOrDefault("BACKUP_RESTORE_CHART_VERSION", ""),
+		)
+		Expect(err).NotTo(HaveOccurred())
 
-			backuprestoreOpts := &charts.RancherBackupRestoreOpts{
-				VolumeName:                BackupRestoreConfig.VolumeName,
-				StorageClassName:          BackupRestoreConfig.StorageClassName,
-				BucketName:                BackupRestoreConfig.S3BucketName,
-				CredentialSecretName:      secretName,
-				CredentialSecretNamespace: BackupRestoreConfig.CredentialSecretNamespace,
-				Enabled:                   true,
-				Endpoint:                  BackupRestoreConfig.S3Endpoint,
-				Folder:                    BackupRestoreConfig.S3FolderName,
-				Region:                    BackupRestoreConfig.S3Region,
-			}
-
-			By(fmt.Sprintf("Installing the version %s for the backup restore", latestBackupRestoreVersion))
-			err = charts.InstallRancherBackupRestoreChart(clientWithSession, backuprestoreInstOpts, backuprestoreOpts, true, params.StorageType)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("Waiting for backup-restore chart deployments to have expected replicas")
-			errDeployChan := make(chan error, 1)
-			go func() {
-				err = extencharts.WatchAndWaitDeployments(clientWithSession, project.ClusterID, charts.RancherBackupRestoreNamespace, metav1.ListOptions{})
-				errDeployChan <- err
-			}()
-
-			select {
-			case err := <-errDeployChan:
-				Expect(err).NotTo(HaveOccurred())
-			case <-time.After(2 * time.Minute):
-				e2e.Failf("Timeout waiting for WatchAndWaitDeployments to complete")
-			}
-		}
 		By("Check if the backup needs to be encrypted, if yes create the encryptionconfig secret")
 		if params.BackupOptions.EncryptionConfigSecretName != "" {
 			secretName, err = charts.CreateEncryptionConfigSecret(client.Steve, params.EncryptionConfigFilePath,
