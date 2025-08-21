@@ -49,6 +49,15 @@ env:
   image_id: ami-00eb69d236edcfaf8
   instance_type: t2.2xlarge
   instance_name: backup-restore-e2e-runner
+  AWS_ACCESS_KEY_ID: ${{ secrets.aws_access_key }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.aws_secret_key }}
+  DEFAULT_REGION: ${{ secrets.aws_region }}
+  KEY_NAME: ${{ secrets.key_name }}
+  RANCHER_PASSWORD: ${{ secrets.rancher_password }}
+  ENCRYPTION_SECRET_KEY: ${{ secrets.encryption_secret_key }}
+  RANCHER_VERSION: ${{ inputs.rancher_version }}
+  RANCHER_REPO_URL: ${{ inputs.rancher_repo }}
+  RKE2_VERSION: ${{ inputs.upstream_cluster_version }}
 
 permissions:
   contents: read
@@ -57,25 +66,10 @@ permissions:
 jobs:
   setup:
     runs-on: ubuntu-latest
-    outputs:
-      PUBLIC_IP: ${{ steps.get_details.outputs.PUBLIC_IP }}
-      SUBNET_ID: ${{ steps.get_details.outputs.SUBNET_ID }}
-      VPC_ID: ${{ steps.get_details.outputs.VPC_ID }}
 
     steps:
-      # Step to install yq
-      - name: Install yq
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y jq  # yq depends on jq
-          sudo wget https://github.com/mikefarah/yq/releases/download/v4.30.5/yq_linux_amd64 -O /usr/local/bin/yq
-          sudo chmod +x /usr/local/bin/yq
-
-      - name: Checkout Observability E2E test code
-        uses: actions/checkout@v3
-
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.aws_access_key }}
           aws-secret-access-key: ${{ secrets.aws_secret_key }}
@@ -85,124 +79,47 @@ jobs:
         run: |
           bucket_name="backup-restore-terraform-state"
           # Check if the bucket exists
-          if ! aws s3api head-bucket --bucket "$bucket_name" --region us-east-2 2>/dev/null; then
+          if ! aws s3api head-bucket --bucket "$bucket_name" --region ${{ secrets.aws_region }} 2>/dev/null; then
             # Create the bucket if it doesn't exist
-            aws s3api create-bucket --bucket "$bucket_name" --region us-east-2 --create-bucket-configuration LocationConstraint=us-east-2
+            aws s3api create-bucket --bucket "$bucket_name" --region ${{ secrets.aws_region }} --create-bucket-configuration LocationConstraint=${{ secrets.aws_region }}
           else
             echo "Bucket $bucket_name already exists, skipping creation."
           fi
+
+  run-functional-e2e-tests:
+    needs: setup
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    name: Run Functional E2E Tests
+
+    steps:
+      - name: Install yq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq  # yq depends on jq
+          sudo wget https://github.com/mikefarah/yq/releases/download/v4.30.5/yq_linux_amd64 -O /usr/local/bin/yq
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.aws_access_key }}
+          aws-secret-access-key: ${{ secrets.aws_secret_key }}
+          aws-region: ${{ secrets.aws_region }}
 
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.9.8
 
-      - name: Checkout omkarkhatavkar/rancher-terraform-deployment repo (terraform code)
-        uses: actions/checkout@v3
-        with:
-          repository: omkarkhatavkar/rancher-terraform-deployment
-          path: terraform
-
-      - name: Terraform Init
-        working-directory: terraform
-        run: terraform init
-
       - name: Start SSH agent and add private key
+        shell: bash
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.instance_ssh_key }}" | tr -d '\r' > ~/.ssh/id_rsa
+          echo "$SSH_KEY" | tr -d '\r' > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-
-      - name: Terraform Apply with config files and secret
-        working-directory: terraform
-        run: terraform apply -auto-approve -var="encryption_secret_key=${{ secrets.ENCRYPTION_SECRET_KEY }}" -var="rke2_version=${{ inputs.upstream_cluster_version }}"
-
-      - name: Export Terraform Outputs as ENV Variables
-        id: get_details
-        working-directory: terraform
-        run: |
-          PUBLIC_IP=$(terraform output -json | jq -r '.public_ip.value')
-          SUBNET_ID=$(terraform output -json | jq -r '.network_info.value.subnet_id')
-          VPC_ID=$(terraform output -json | jq -r '.network_info.value.vpc_id')
-
-          echo "PUBLIC_IP=$PUBLIC_IP" >> $GITHUB_OUTPUT
-          echo "SUBNET_ID=$SUBNET_ID" >> $GITHUB_OUTPUT
-          echo "VPC_ID=$VPC_ID" >> $GITHUB_OUTPUT
-
-      - name: Install Rancher
-        run: |
-          echo "Installing Rancher..."
-          ssh -o StrictHostKeyChecking=no ubuntu@${{ steps.get_details.outputs.PUBLIC_IP }} << 'EOF'
-            sudo bash -c "
-              # Download and install Helm
-              curl -fsSL -o /root/get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
-              chmod +x /root/get_helm.sh
-              /root/get_helm.sh
-
-              # Install cert-manager
-              kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.15.3/cert-manager.yaml
-              sleep 180 # Wait for cert-manager components to initialize
-
-              # Add Helm repository for cert-manager
-              helm repo add jetstack https://charts.jetstack.io
-
-              # Add Rancher Helm repository
-              helm repo add rancher '${{ inputs.rancher_repo }}'
-
-              # Install Rancher
-              if echo '${{ inputs.rancher_repo }}' | grep -q 'releases.rancher.com'; then
-                helm install rancher rancher/rancher --namespace cattle-system \
-                  --version  "$(echo '${{ inputs.rancher_version }}' | tr -d 'v')" \
-                  --set hostname=rancher.${{ steps.get_details.outputs.PUBLIC_IP }}.sslip.io \
-                  --set replicas=2 \
-                  --set bootstrapPassword='${{ secrets.rancher_password }}' \
-                  --set global.cattle.psp.enabled=false \
-                  --set insecure=true \
-                  --set rancherImageTag='${{ inputs.rancher_version }}' \
-                  --set rancherImage='rancher/rancher' \
-                  --wait \
-                  --timeout=10m \
-                  --create-namespace \
-                  --devel
-              else
-                helm install rancher rancher/rancher --namespace cattle-system \
-                  --version  "$(echo '${{ inputs.rancher_version }}' | tr -d 'v')" \
-                  --set hostname=rancher.${{ steps.get_details.outputs.PUBLIC_IP }}.sslip.io \
-                  --set replicas=2 \
-                  --set bootstrapPassword='${{ secrets.rancher_password }}' \
-                  --set global.cattle.psp.enabled=false \
-                  --set insecure=true \
-                  --set rancherImageTag='${{ inputs.rancher_version }}' \
-                  --set rancherImage='stgregistry.suse.com/rancher/rancher' \
-                  --set rancherImagePullPolicy=Always \
-                  --set extraEnv[0].name=CATTLE_AGENT_IMAGE \
-                  --set extraEnv[0].value='stgregistry.suse.com/rancher/rancher-agent:${{ inputs.rancher_version }}' \
-                  --wait \
-                  --timeout=10m \
-                  --create-namespace \
-                  --devel
-              fi
-
-              sleep 180 # Wait for Rancher components to fully initialize
-              echo 'Rancher installation complete.'
-            "
-          EOF
-
-
-  run-e2e:
-    needs: [setup]
-    runs-on: ubuntu-latest
-    env:
-      # Rancher environment
-      RANCHER_VERSION: ${{ inputs.rancher_version }}
-      UPSTREAM_CLUSTER_VERSION: ${{ inputs.upstream_cluster_version }}
-    steps:
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id: ${{ secrets.aws_access_key }}
-          aws-secret-access-key: ${{ secrets.aws_secret_key }}
-          aws-region: ${{ secrets.aws_region }}
+        env:
+          SSH_KEY: ${{ secrets.instance_ssh_key }}
 
       - name: Checkout code
         uses: actions/checkout@v4
@@ -212,76 +129,12 @@ jobs:
         with:
           go-version-file: './go.mod'
 
-      - name: Fully initialize Rancher and generate API token
-        id: get_token
-        run: |
-          set -euo pipefail
-
-          echo "::add-mask::${{ secrets.rancher_password }}"
-
-          RANCHER_URL="https://rancher.${{ needs.setup.outputs.PUBLIC_IP }}.sslip.io"
-
-          # 1. Login with admin password
-          LOGIN_RESPONSE=$(curl --silent -X POST -H 'Content-Type: application/json' \
-            -d '{"username":"admin","password":"${{ secrets.rancher_password }}"}' \
-            "$RANCHER_URL/v3-public/localProviders/local?action=login" \
-            --insecure)
-
-          TOKEN=$(echo "$LOGIN_RESPONSE" | jq -r .token)
-
-          if [ -z "$TOKEN" ] || [ "$TOKEN" == "null" ]; then
-            echo "Failed to login with admin password" >&2
-            exit 1
-          fi
-
-          echo "::add-mask::$TOKEN"
-
-          # 2. Accept EULA (telemetry opt-out)
-          curl --silent -X PUT -H "Authorization: Bearer $TOKEN" \
-            -H 'Content-Type: application/json' \
-            -d '{"name":"telemetry-opt","value":"out"}' \
-            "$RANCHER_URL/v3/settings/telemetry-opt" --insecure
-
-          # 3. Set Rancher Server URL
-          curl --silent -X PUT -H "Authorization: Bearer $TOKEN" \
-            -H 'Content-Type: application/json' \
-            -d '{"name":"server-url","value":"'"$RANCHER_URL"'"}' \
-            "$RANCHER_URL/v3/settings/server-url" --insecure
-
-          # 4. Generate permanent API token
-          PERMANENT_TOKEN_RESPONSE=$(curl --silent -X POST -H 'Content-Type: application/json' \
-            -H "Authorization: Bearer $TOKEN" \
-            -d '{"type":"token","description":"e2e-tests"}' \
-            "$RANCHER_URL/v3/token" --insecure)
-
-          PERMANENT_TOKEN=$(echo "$PERMANENT_TOKEN_RESPONSE" | jq -r .token)
-
-          if [ -z "$PERMANENT_TOKEN" ] || [ "$PERMANENT_TOKEN" == "null" ]; then
-            echo "Failed to generate permanent token" >&2
-            exit 1
-          fi
-
-          echo "::add-mask::$PERMANENT_TOKEN"
-
-          # 5. Write config file
-          {
-            echo "rancher:"
-            echo "  host: rancher.${{ needs.setup.outputs.PUBLIC_IP }}.sslip.io"
-            echo "  adminToken: $PERMANENT_TOKEN"
-            echo "  insecure: True"
-            echo "  clusterName: local"
-            echo "  cleanup: true"
-            echo "awsCredentials:"
-            echo "  accessKey: ${{ secrets.aws_access_key }}"
-            echo "  secretKey: ${{ secrets.aws_secret_key }}"
-            echo "  defaultRegion: ${{ secrets.aws_region }}"
-          } > "$GITHUB_WORKSPACE/cattle-config.yaml"
-
+      - name: Create artifacts directory
+        run: mkdir -p ~/artifacts
 
       - name: Setup the required configuration files
         id: setup_config
         run: |
-
           # 1. Rename .example files
           mv "$GITHUB_WORKSPACE/tests/helper/yamls/inputBackupRestoreConfig.yaml.example" \
             "$GITHUB_WORKSPACE/tests/helper/yamls/inputBackupRestoreConfig.yaml"
@@ -300,19 +153,14 @@ jobs:
           yq -i '.secretKey = "${{ secrets.aws_secret_key }}"' \
             "$GITHUB_WORKSPACE/tests/helper/yamls/inputBackupRestoreConfig.yaml"
 
-          # 4. Set VPC and Subnet
-          yq -i '.machineconfig.data.subnetId = "${{ needs.setup.outputs.SUBNET_ID }}" | .machineconfig.data.vpcId = "${{ needs.setup.outputs.VPC_ID }}"' \
-            "$GITHUB_WORKSPACE/tests/helper/yamls/inputClusterConfig.yaml"
-
-      - name: Create artifacts directory
-        run: mkdir -p ~/artifacts
-
-      - name: Run E2E Tests
-        id: run_e2e_tests
+      - name: Run Backup Restore Functional Tests
+        id: go-run-tests
         run: |
+          set -o pipefail
+          mv $GITHUB_WORKSPACE/cattle-config.yaml.example $GITHUB_WORKSPACE/cattle-config.yaml
           CATTLE_TEST_CONFIG=$GITHUB_WORKSPACE/cattle-config.yaml \
           TEST_LABEL_FILTER=backup-restore \
-          go test -timeout 60m github.com/rancher/observability-e2e/tests/backuprestore/functional -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-e2e.txt
+          go test -timeout 60m github.com/rancher/observability-e2e/tests/backuprestore/functional/ -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-e2e.txt
 
       - name: Cleanup temporary files
         if: ${{ always() }}
@@ -322,12 +170,12 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: test-artifacts
+          name: test-artifacts-functional
           path: ~/artifacts
 
   delete-resources:
     if: ${{ always() && inputs.destroy_runner == true }}
-    needs: [setup, run-e2e]
+    needs: [setup, run-functional-e2e-tests]
     runs-on: ubuntu-latest
 
     steps:
@@ -338,21 +186,16 @@ jobs:
           aws-secret-access-key: ${{ secrets.aws_secret_key }}
           aws-region: ${{ secrets.aws_region }}
 
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.9.8
-
-      - name: Install awsdeleter CLI tool
+      - name: Install awsdeleter and clean up AWS resources
         run: |
           sudo apt install -y python3 python3-pip python3-venv
           python3 -m venv awsdeleter-env
           source awsdeleter-env/bin/activate
           python3 -m pip install --no-cache-dir awsdeleter
-          prefixes=("auto-okhatavk" "okhatavk")
+          prefixes=("auto-okhatavk" "okhatavk" "auto-backup-restore-test" "backup-restore-terraform-state")
 
           for prefix in "${prefixes[@]}"; do
-            for i in {1..20}; do
+            for i in {1..10}; do
               if awsdeleter "$prefix" --confirm yes; then
                 echo "$prefix: Success on attempt $i"
                 break
@@ -362,25 +205,4 @@ jobs:
               fi
             done
           done
-
-      - name: Checkout omkarkhatavkar/rancher-terraform-deployment Repo (terraform code)
-        uses: actions/checkout@v3
-        with:
-          repository: omkarkhatavkar/rancher-terraform-deployment
-          path: terraform
-
-      - name: Terraform Init
-        working-directory: terraform
-        run: terraform init
-
-      - name: Terraform Destroy
-        working-directory: terraform
-        run: terraform destroy -auto-approve -var="encryption_secret_key=${{ secrets.ENCRYPTION_SECRET_KEY }}"
-
-      - name: Delete the S3 terraform state file
-        run: |
-          sudo apt install -y python3 python3-pip python3-venv
-          python3 -m venv awsdeleter-env
-          source awsdeleter-env/bin/activate
-          python3 -m pip install --no-cache-dir awsdeleter
-          awsdeleter backup-restore-terraform-state --resource s3 --confirm yes
+          echo "Deleting S3 state files..."

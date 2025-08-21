@@ -28,8 +28,6 @@ import (
 	e2e "k8s.io/kubernetes/test/e2e/framework"
 )
 
-const exampleAppProjectName = "System"
-
 var _ = Describe("Parameterized Backup and Restore Chart Installation Tests", func() {
 	var _ = DescribeTable("Test: Backup and Restore Chart Installation with multiple storage",
 		func(params charts.BackupParams) {
