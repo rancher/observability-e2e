@@ -7,7 +7,7 @@ on:
       - 'main'
   workflow_dispatch:
   schedule:
-    - cron: '0 3 * * *'  # Runs daily at 3:00 AM UTC (8:30 AM IST)
+    - cron: '0 0 * * *'  # Runs daily at 12:00 AM UTC (5:30 AM IST)
 
 jobs:
   setup_rancher:
@@ -25,7 +25,7 @@ jobs:
 
       - name: Start Rancher container
         run: |
-          if [[ "${{ matrix.tag }}" == "v2.8-head" || "${{ matrix.tag }}" == "v2.9-head" ]]; then
+          if [[ "${{ matrix.tag }}" == "v2.10-head" || "${{ matrix.tag }}" == "v2.11-head" ]]; then
               IMAGE="stgregistry.suse.com/rancher/rancher:${{ matrix.tag }}"
           else
               IMAGE="rancher/rancher:${{ matrix.tag }}"
@@ -142,9 +142,14 @@ jobs:
       - name: Check Test Results and Mark Pipeline
         if: always()
         run: |
-          for log_file in ~/artifacts/test-output-installation-${{ matrix.tag }}.txt ~/artifacts/test-output-e2e-${{ matrix.tag }}.txt ~/artifacts/test-output-upgrade-${{ matrix.tag }}.txt; do
-            if [[ -f "$log_file" ]] && grep -q "FAIL" "$log_file"; then
-              echo "$(basename "$log_file") contains failures!"
-              exit 1
+          for log_file in ~/artifacts/*; do
+            if [[ -f "$log_file" ]]; then
+              if grep -q "FAIL" "$log_file"; then
+                echo "RANCHER_VERSION=${{ matrix.tag }} failure encounter in $(basename "$log_file") contains failures!"
+                grep "FAIL" "$log_file"
+                exit 1
+              else
+                echo "RANCHER_VERSION=${{ matrix.tag }} test successfully passed with file details -> $(basename "$log_file")"
+              fi
             fi
           done
