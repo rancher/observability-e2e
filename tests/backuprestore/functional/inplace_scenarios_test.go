@@ -100,15 +100,18 @@ var _ = DescribeTable("Test: Rancher inplace backup and restore test.",
 		})
 
 		// Get the latest version of the backup restore chart
+		installParams := charts.BackupChartInstallParams{
+			StorageType:  params.StorageType,
+			SecretName:   secretName,
+			BackupConfig: BackupRestoreConfig,
+			ChartVersion: utils.GetEnvOrDefault("BACKUP_RESTORE_CHART_VERSION", ""),
+		}
 		By("Install the latest backup and restore chart")
 		_, err = charts.InstallLatestBackupRestoreChart(
 			clientWithSession,
 			project,
 			cluster,
-			params.StorageType,
-			secretName,
-			BackupRestoreConfig,
-			utils.GetEnvOrDefault("BACKUP_RESTORE_CHART_VERSION", ""),
+			&installParams,
 		)
 		Expect(err).NotTo(HaveOccurred())
 
@@ -146,8 +149,6 @@ var _ = DescribeTable("Test: Rancher inplace backup and restore test.",
 		By(fmt.Sprintf("Creating a restore using backup file: %v", filename))
 		restoreTemplate := bv1.NewRestore("", "", charts.SetRestoreObject(params.BackupOptions.Name, params.Prune, params.BackupOptions.EncryptionConfigSecretName))
 		restoreTemplate.Spec.BackupFilename = filename
-		client, err = client.ReLogin()
-		Expect(err).NotTo(HaveOccurred())
 
 		createdRestore, err := client.Steve.SteveType(charts.RestoreSteveType).Create(restoreTemplate)
 		Expect(err).NotTo(HaveOccurred())

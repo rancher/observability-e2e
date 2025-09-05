@@ -19,6 +19,8 @@ require (
 	github.com/gruntwork-io/terratest v0.45.0
 	github.com/onsi/ginkgo/v2 v2.20.2
 	github.com/onsi/gomega v1.34.2
+	github.com/prometheus/client_golang v1.18.0
+	github.com/prometheus/common v0.45.0
 	github.com/rancher-sandbox/ele-testhelpers v0.0.0-20231206161614-20a517410736
 	github.com/rancher-sandbox/qase-ginkgo v1.0.1
 	github.com/rancher/backup-restore-operator v1.2.1
@@ -109,9 +111,7 @@ require (
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.52.0 // indirect
-	github.com/prometheus/client_golang v1.18.0 // indirect
 	github.com/prometheus/client_model v0.5.0 // indirect
-	github.com/prometheus/common v0.45.0 // indirect
 	github.com/prometheus/procfs v0.12.0 // indirect
 	github.com/rancher/aks-operator v1.9.2-rc.2 // indirect
 	github.com/rancher/apiserver v0.0.0-20240708202538-39a6f2535146 // indirect

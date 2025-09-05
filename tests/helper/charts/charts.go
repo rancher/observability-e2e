@@ -58,6 +58,7 @@ type RancherBackupRestoreOpts struct {
 	Endpoint                  string
 	Folder                    string
 	Region                    string
+	EnableMonitoring          bool // Monitoring options
 }
 
 type PrometheusFederatorOpts struct {
