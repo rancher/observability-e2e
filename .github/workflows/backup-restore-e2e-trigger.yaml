@@ -1,4 +1,4 @@
-name: Backup Restore E2E Trigger
+name: Backup Restore Functional E2E Tests Trigger
 
 run-name: >
   Rancher=${{ inputs.rancher_version }}, RKE2 Version=${{ inputs.upstream_cluster_version }}, destroy=${{ inputs.destroy_runner }}
@@ -6,25 +6,25 @@ run-name: >
 on:
   workflow_dispatch:
     inputs:
+      rancher_version:
+        description: Rancher Manager version
+        type: string
+        required: true
+      upstream_cluster_version:
+        description: Rancher (RKE2) version
+        default: v1.32.5+rke2r1
+        type: string
+        required: true
       destroy_runner:
         description: Destroy runner
         default: true
         type: boolean
-      rancher_version:
-        description: Rancher Manager version
-        default: v2.10.1
-        type: string
-        required: true
-      upstream_cluster_version:
-        description: Rancher RKE2 version
-        default: v1.30.8+rke2r1
-        type: string
-        required: true
       rancher_repo:
         description: Rancher Manager repository
         default: https://releases.rancher.com/server-charts/latest
         type: string
         required: true
+
 
 jobs:
   e2e:
