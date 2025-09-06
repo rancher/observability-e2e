@@ -97,15 +97,18 @@ var _ = DescribeTable("Test: Validate the Backup and Restore Upgrade and Rollbac
 		})
 
 		// Get the latest version of the backup restore chart
+		installParams := charts.BackupChartInstallParams{
+			StorageType:  params.StorageType,
+			SecretName:   secretName,
+			BackupConfig: BackupRestoreConfig,
+			ChartVersion: utils.GetEnvOrDefault("BACKUP_RESTORE_CHART_VERSION", ""),
+		}
 		if !initialBackupRestoreChart.IsAlreadyInstalled {
 			_, err = charts.InstallLatestBackupRestoreChart(
 				clientWithSession,
 				project,
 				cluster,
-				params.StorageType,
-				secretName,
-				BackupRestoreConfig,
-				utils.GetEnvOrDefault("BACKUP_RESTORE_CHART_VERSION", ""),
+				&installParams,
 			)
 			Expect(err).NotTo(HaveOccurred())
 		}
@@ -167,14 +170,17 @@ var _ = DescribeTable("Test: Validate the Backup and Restore Upgrade and Rollbac
 		Expect(err).NotTo(HaveOccurred(), "Downstream Cluster is not getting Active. ")
 
 		By("Update the rancher to use the latest backup and restore chart")
+		installParams = charts.BackupChartInstallParams{
+			StorageType:  params.StorageType,
+			SecretName:   secretName,
+			BackupConfig: BackupRestoreConfig,
+			ChartVersion: utils.GetEnvOrDefault("BACKUP_RESTORE_CHART_VERSION", ""),
+		}
 		_, err = charts.InstallLatestBackupRestoreChart(
 			clientWithSession,
 			project,
 			cluster,
-			params.StorageType,
-			secretName,
-			BackupRestoreConfig,
-			utils.GetEnvOrDefault("BACKUP_RESTORE_CHART_VERSION", ""),
+			&installParams,
 		)
 		Expect(err).NotTo(HaveOccurred())
 

@@ -61,15 +61,18 @@ var _ = Describe("Parameterized Backup and Restore Chart Installation Tests", fu
 			Expect(err).NotTo(HaveOccurred())
 
 			// Get the latest version of the backup restore chart
+			installParams := charts.BackupChartInstallParams{
+				StorageType:  params.StorageType,
+				SecretName:   secretName,
+				BackupConfig: BackupRestoreConfig,
+				ChartVersion: utils.GetEnvOrDefault("BACKUP_RESTORE_CHART_VERSION", ""),
+			}
 			By("Install the latest backup and restore chart")
 			_, err = charts.InstallLatestBackupRestoreChart(
 				clientWithSession,
 				project,
 				cluster,
-				params.StorageType,
-				secretName,
-				BackupRestoreConfig,
-				utils.GetEnvOrDefault("BACKUP_RESTORE_CHART_VERSION", ""),
+				&installParams,
 			)
 			Expect(err).NotTo(HaveOccurred())
 

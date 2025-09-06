@@ -53,6 +53,11 @@ func InstallRancherMonitoringChart(client *rancher.Client, installOptions *Insta
 				"scrapeInterval":     "1m",
 			},
 		},
+		"rancherBackupMonitoring": map[string]interface{}{
+			"dashboards": map[string]interface{}{
+				"enabled": true,
+			},
+		},
 	}
 
 	// Convert rancherMonitoringOpts to a map for easier manipulation.

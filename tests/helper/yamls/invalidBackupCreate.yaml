@@ -1,0 +1,16 @@
+apiVersion: resources.cattle.io/v1
+kind: Backup
+metadata:
+  name: invalid-backup
+  annotations:
+    {}
+  labels:
+    {}
+spec:
+  encryptionConfigSecretName: ''
+  resourceSetName: rancher-resource-set-basic
+  retentionCount: 10
+  storageLocation:
+    s3:
+      bucketName: invalid-bucket
+      endpoint: s3.us-west-2.amazonaws.com

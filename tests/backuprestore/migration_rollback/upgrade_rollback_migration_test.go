@@ -99,15 +99,18 @@ var _ = DescribeTable("Test: Validate the Backup and Restore Upgrade and Rollbac
 		})
 
 		// Get the latest version of the backup restore chart
+		installParams := charts.BackupChartInstallParams{
+			StorageType:  params.StorageType,
+			SecretName:   secretName,
+			BackupConfig: BackupRestoreConfig,
+			ChartVersion: "",
+		}
 		if !initialBackupRestoreChart.IsAlreadyInstalled {
 			rollbackChartVersion, err = charts.InstallLatestBackupRestoreChart(
 				clientWithSession,
 				project,
 				cluster,
-				params.StorageType,
-				secretName,
-				BackupRestoreConfig,
-				"",
+				&installParams,
 			)
 			Expect(err).NotTo(HaveOccurred())
 			e2e.Logf("Installed Backup and Restore Chart Version: %s", rollbackChartVersion)
@@ -168,14 +171,17 @@ var _ = DescribeTable("Test: Validate the Backup and Restore Upgrade and Rollbac
 
 		By("Update the rancher to use the latest backup and restore chart")
 		time.Sleep(3 * time.Minute)
+		installParams = charts.BackupChartInstallParams{
+			StorageType:  params.StorageType,
+			SecretName:   secretName,
+			BackupConfig: BackupRestoreConfig,
+			ChartVersion: utils.GetEnvOrDefault("BACKUP_RESTORE_CHART_VERSION", ""),
+		}
 		_, err = charts.InstallLatestBackupRestoreChart(
 			clientWithSession,
 			project,
 			cluster,
-			params.StorageType,
-			secretName,
-			BackupRestoreConfig,
-			utils.GetEnvOrDefault("BACKUP_RESTORE_CHART_VERSION", ""),
+			&installParams,
 		)
 		Expect(err).NotTo(HaveOccurred())
 

@@ -101,14 +101,17 @@ var _ = DescribeTable("Test: Validate the Backup and Restore Migration Scenario 
 		// Get the latest version of the backup restore chart
 		By("Update the rancher to use the latest backup and restore chart")
 		time.Sleep(3 * time.Minute)
+		installParams := charts.BackupChartInstallParams{
+			StorageType:  params.StorageType,
+			SecretName:   secretName,
+			BackupConfig: BackupRestoreConfig,
+			ChartVersion: utils.GetEnvOrDefault("BACKUP_RESTORE_CHART_VERSION", ""),
+		}
 		_, err = charts.InstallLatestBackupRestoreChart(
 			clientWithSession,
 			project,
 			cluster,
-			params.StorageType,
-			secretName,
-			BackupRestoreConfig,
-			utils.GetEnvOrDefault("BACKUP_RESTORE_CHART_VERSION", ""),
+			&installParams,
 		)
 		Expect(err).NotTo(HaveOccurred())
 

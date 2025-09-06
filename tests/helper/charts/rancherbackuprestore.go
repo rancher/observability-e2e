@@ -87,6 +87,13 @@ type MigrationYamlData struct {
 	Region         string
 	Endpoint       string
 }
+type BackupChartInstallParams struct {
+	StorageType      string
+	SecretName       string
+	BackupConfig     *localConfig.BackupRestoreConfig
+	ChartVersion     string
+	EnableMonitoring bool // optional, defaults to false
+}
 
 // InstallRancherBackupRestoreChart installs the Rancher backup/restore chart with optional storage configuration.
 func InstallRancherBackupRestoreChart(client *rancher.Client, installOpts *InstallOptions, chartOpts *RancherBackupRestoreOpts, withStorage bool, storageType string) error {
@@ -233,6 +240,18 @@ func newBackupChartInstallAction(p *PayloadOpts, withStorage bool, rancherBackup
 		default:
 			fmt.Printf("Unsupported storage type: %s\n", storageType)
 			return nil
+		}
+	}
+
+	// Configure monitoring independently (on demand)
+	if rancherBackupRestoreOpts.EnableMonitoring {
+		backupValues["monitoring"] = map[string]any{
+			"metrics": map[string]any{
+				"enabled": rancherBackupRestoreOpts.EnableMonitoring,
+			},
+			"serviceMonitor": map[string]any{
+				"enabled": rancherBackupRestoreOpts.EnableMonitoring,
+			},
 		}
 	}
 
@@ -675,41 +694,39 @@ func InstallLatestBackupRestoreChart(
 	client *rancher.Client,
 	project *management.Project,
 	clusterID *clusters.ClusterMeta,
-	storageType string,
-	secretName string,
-	backupRestoreConfig *localConfig.BackupRestoreConfig,
-	chartVersion string,
+	installParams *BackupChartInstallParams,
 ) (string, error) {
 	var err error
 
-	if chartVersion == "" {
-		chartVersion, err = client.Catalog.GetLatestChartVersion(RancherBackupRestoreName, catalog.RancherChartRepo)
+	if installParams.ChartVersion == "" {
+		installParams.ChartVersion, err = client.Catalog.GetLatestChartVersion(RancherBackupRestoreName, catalog.RancherChartRepo)
 		if err != nil {
 			return "", fmt.Errorf("failed to get latest chart version: %w", err)
 		}
 	}
 
-	e2e.Logf("Installing backup-restore chart version: %s", chartVersion)
+	e2e.Logf("Installing backup-restore chart version: %s", installParams.ChartVersion)
 
 	installOpts := &InstallOptions{
 		Cluster:   clusterID,
-		Version:   chartVersion,
+		Version:   installParams.ChartVersion,
 		ProjectID: project.ID,
 	}
 
 	restoreOpts := &RancherBackupRestoreOpts{
-		VolumeName:                backupRestoreConfig.VolumeName,
-		StorageClassName:          backupRestoreConfig.StorageClassName,
-		BucketName:                backupRestoreConfig.S3BucketName,
-		CredentialSecretName:      secretName,
-		CredentialSecretNamespace: backupRestoreConfig.CredentialSecretNamespace,
+		VolumeName:                installParams.BackupConfig.VolumeName,
+		StorageClassName:          installParams.BackupConfig.StorageClassName,
+		BucketName:                installParams.BackupConfig.S3BucketName,
+		CredentialSecretName:      installParams.SecretName,
+		CredentialSecretNamespace: installParams.BackupConfig.CredentialSecretNamespace,
 		Enabled:                   true,
-		Endpoint:                  backupRestoreConfig.S3Endpoint,
-		Folder:                    backupRestoreConfig.S3FolderName,
-		Region:                    backupRestoreConfig.S3Region,
+		Endpoint:                  installParams.BackupConfig.S3Endpoint,
+		Folder:                    installParams.BackupConfig.S3FolderName,
+		Region:                    installParams.BackupConfig.S3Region,
+		EnableMonitoring:          installParams.EnableMonitoring,
 	}
 
-	if err := InstallRancherBackupRestoreChart(client, installOpts, restoreOpts, true, storageType); err != nil {
+	if err := InstallRancherBackupRestoreChart(client, installOpts, restoreOpts, true, installParams.StorageType); err != nil {
 		return "", fmt.Errorf("chart install/upgrade failed: %w", err)
 	}
 
@@ -729,5 +746,5 @@ func InstallLatestBackupRestoreChart(
 		return "", fmt.Errorf("timeout waiting for chart deployment to complete")
 	}
 
-	return chartVersion, nil
+	return installParams.ChartVersion, nil
 }
