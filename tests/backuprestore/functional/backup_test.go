@@ -82,14 +82,17 @@ var _ = DescribeTable("BackupTests: ",
 		// Get the latest version of the backup restore chart
 		By("Update the rancher to use the latest backup and restore chart")
 		time.Sleep(3 * time.Minute)
+		installParams := charts.BackupChartInstallParams{
+			StorageType:  params.StorageType,
+			SecretName:   secretName,
+			BackupConfig: BackupRestoreConfig,
+			ChartVersion: utils.GetEnvOrDefault("BACKUP_RESTORE_CHART_VERSION", ""),
+		}
 		_, err = charts.InstallLatestBackupRestoreChart(
 			clientWithSession,
 			project,
 			cluster,
-			params.StorageType,
-			secretName,
-			BackupRestoreConfig,
-			utils.GetEnvOrDefault("BACKUP_RESTORE_CHART_VERSION", ""),
+			&installParams,
 		)
 		Expect(err).NotTo(HaveOccurred())
 
@@ -122,8 +125,6 @@ var _ = DescribeTable("BackupTests: ",
 		resultList, err := s3Client.ListFilesAndTimeDifference(BackupRestoreConfig.S3BucketName, BackupRestoreConfig.S3FolderName)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(len(resultList)).To(Equal(3))
-		client, err := client.ReLogin()
-		Expect(err).NotTo(HaveOccurred())
 
 		By("Deleting the Backup from the Rancher Manager")
 		err = client.Steve.SteveType(charts.BackupSteveType).Delete(backupObject)
@@ -197,17 +198,19 @@ var _ = DescribeTable("Backup Resource Set Tests : ",
 			err = charts.DeleteStorageResources(params.StorageType, clientWithSession, BackupRestoreConfig)
 			Expect(err).NotTo(HaveOccurred())
 		})
-
+		installParams := charts.BackupChartInstallParams{
+			StorageType:  params.StorageType,
+			SecretName:   secretName,
+			BackupConfig: BackupRestoreConfig,
+			ChartVersion: utils.GetEnvOrDefault("BACKUP_RESTORE_CHART_VERSION", ""),
+		}
 		// Get the latest version of the backup restore chart
 		By("Install the latest backup and restore chart")
 		_, err = charts.InstallLatestBackupRestoreChart(
 			clientWithSession,
 			project,
 			cluster,
-			params.StorageType,
-			secretName,
-			BackupRestoreConfig,
-			utils.GetEnvOrDefault("BACKUP_RESTORE_CHART_VERSION", ""),
+			&installParams,
 		)
 		Expect(err).NotTo(HaveOccurred())
 
