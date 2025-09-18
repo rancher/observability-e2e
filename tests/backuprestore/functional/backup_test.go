@@ -126,6 +126,9 @@ var _ = DescribeTable("BackupTests: ",
 		Expect(err).NotTo(HaveOccurred())
 		Expect(len(resultList)).To(Equal(3))
 
+		client, err := client.ReLogin()
+		Expect(err).NotTo(HaveOccurred())
+
 		By("Deleting the Backup from the Rancher Manager")
 		err = client.Steve.SteveType(charts.BackupSteveType).Delete(backupObject)
 		Expect(err).NotTo(HaveOccurred())
