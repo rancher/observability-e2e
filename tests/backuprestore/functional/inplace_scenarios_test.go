@@ -149,7 +149,8 @@ var _ = DescribeTable("Test: Rancher inplace backup and restore test.",
 		By(fmt.Sprintf("Creating a restore using backup file: %v", filename))
 		restoreTemplate := bv1.NewRestore("", "", charts.SetRestoreObject(params.BackupOptions.Name, params.Prune, params.BackupOptions.EncryptionConfigSecretName))
 		restoreTemplate.Spec.BackupFilename = filename
-
+		client, err := client.ReLogin()
+		Expect(err).NotTo(HaveOccurred())
 		createdRestore, err := client.Steve.SteveType(charts.RestoreSteveType).Create(restoreTemplate)
 		Expect(err).NotTo(HaveOccurred())
 
