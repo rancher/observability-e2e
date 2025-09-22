@@ -174,6 +174,20 @@ var _ = Describe("E2E - Install Rancher Manager", Label("install"), Ordered, fun
 			}, tools.SetTimeout(4*time.Minute), 30*time.Second).Should(BeNil())
 		})
 
+		By("Verifying Rancher image version", func() {
+			// Command to get the image from the rancher deployment
+			cmd := exec.Command("kubectl", "get", "deployment", "rancher", "-n", "cattle-system", "-o", "jsonpath={.spec.template.spec.containers[?(@.name==\"rancher\")].image}")
+
+			// Run the command and get the output
+			out, err := cmd.CombinedOutput()
+			Expect(err).ToNot(HaveOccurred())
+
+			// Trim whitespace and print the result to the logs
+			imageTag := strings.TrimSpace(string(out))
+			GinkgoWriter.Printf("✅ Rancher is running with image: %s\n", imageTag)
+			Expect(imageTag).ToNot(BeEmpty())
+		})
+
 		By("Generating Rancher API token and saving to cattle-config.yaml", func() {
 			time.Sleep(60 * time.Second)
 			type loginResponse struct {

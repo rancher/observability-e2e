@@ -63,7 +63,7 @@ func TestE2E(t *testing.T) {
 
 var _ = BeforeSuite(func() {
 	// export HOSTNAME_NAME=localhost
-	// export RANCHER_VERSION="latest/devel/2.12"
+	// export RANCHER_VERSION="prime/devel/2.11"
 	// export K3S_VERSION=v1.32.6+k3s1
 	// export RANCHER_PASSWORD="rancherpassword123"
 	hostname = os.Getenv("HOSTNAME_NAME")
@@ -72,7 +72,7 @@ var _ = BeforeSuite(func() {
 	}
 	rancherVersion = os.Getenv("RANCHER_VERSION")
 	if rancherVersion == "" {
-		rancherVersion = "latest/devel/2.11"
+		rancherVersion = "latest/devel/2.12"
 	}
 
 	k3sVersion = os.Getenv("K3S_VERSION")
