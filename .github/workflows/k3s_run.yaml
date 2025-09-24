@@ -16,12 +16,12 @@ jobs:
     strategy:
       matrix:
         include:
-          - k3s_version: v1.30.14+k3s2
-            rancher_version: latest/devel/2.10
           - k3s_version: v1.31.12+k3s1
-            rancher_version: latest/devel/2.11
+            rancher_version: head/devel/2.11
           - k3s_version: v1.32.8+k3s1
             rancher_version: latest/devel/2.12
+          - k3s_version: v1.32.8+k3s1
+            rancher_version: latest/devel/head
       fail-fast: false
 
     steps:
@@ -103,9 +103,9 @@ jobs:
         run: |
           for log_file in ~/artifacts/*; do
             if [[ -f "$log_file" ]]; then
-              if grep -q "FAIL" "$log_file"; then
+              if grep -q "FAIL!" "$log_file"; then
                 echo "K3S_VERSION=${{ matrix.k3s_version }} RANCHER_VERSION=${{ matrix.rancher_version }} failure encounter in $(basename "$log_file") contains failures!"
-                grep -A1 -B1 "FAIL" "$log_file"
+                grep -A1 -B1 "FAIL!" "$log_file"
                 exit 1
               else
                 echo "K3S_VERSION=${{ matrix.k3s_version }} RANCHER_VERSION=${{ matrix.rancher_version }} test successfully passed with version and file details -> $(basename "$log_file")"

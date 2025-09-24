@@ -21,7 +21,7 @@ require (
 	github.com/onsi/gomega v1.34.2
 	github.com/prometheus/client_golang v1.18.0
 	github.com/prometheus/common v0.45.0
-	github.com/rancher-sandbox/ele-testhelpers v0.0.0-20231206161614-20a517410736
+	github.com/rancher-sandbox/ele-testhelpers v0.0.0-20250711071119-c33617a1af7a
 	github.com/rancher-sandbox/qase-ginkgo v1.0.1
 	github.com/rancher/backup-restore-operator v1.2.1
 	github.com/rancher/rancher v0.0.0-00010101000000-000000000000
