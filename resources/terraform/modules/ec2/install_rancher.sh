@@ -30,7 +30,21 @@ PUBLIC_IP=$(curl -s ifconfig.me)
 RANCHER_HOSTNAME="rancher.${PUBLIC_IP}.sslip.io"
 
 # Install Rancher
-if echo "$HELM_REPO_URL" | grep -q "releases.rancher.com"; then
+if [[ "$RANCHER_VERSION" == *"head"* ]]; then
+  echo "🚀 Installing Rancher from HEAD build: $RANCHER_VERSION ..."
+  helm install rancher rancher/rancher --namespace cattle-system \
+    --set hostname=$RANCHER_HOSTNAME \
+    --set replicas=2 \
+    --set bootstrapPassword="$RANCHER_PASSWORD" \
+    --set global.cattle.psp.enabled=false \
+    --set insecure=true \
+    --set rancherImage=rancher/rancher \
+    --set rancherImageTag="$RANCHER_VERSION" \
+    --wait \
+    --timeout=10m \
+    --create-namespace \
+    --devel
+elif echo "$HELM_REPO_URL" | grep -q "releases.rancher.com"; then
   echo "📦 Installing Rancher using official release chart..."
   helm install rancher rancher/rancher --namespace cattle-system \
     --version "$(echo "$RANCHER_VERSION" | tr -d 'v')" \
@@ -62,6 +76,7 @@ else
     --create-namespace \
     --devel
 fi
+
 
 # Wait for Rancher to start
 sleep 120
