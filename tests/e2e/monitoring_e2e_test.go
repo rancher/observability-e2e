@@ -141,6 +141,8 @@ var _ = Describe("Observability Monitoring E2E Test Suite", func() {
 		Expect(err).NotTo(HaveOccurred(), "Failed to get deployments")
 
 		By("1) Read all the deployments and verify the status of rancher-monitoring deployments")
+		foundGrafanaRenderer := false
+
 		deployments := strings.Split(rancherMonitoringDeployments, "\n")
 		for _, deployment := range deployments {
 			if deployment == "" {
@@ -154,6 +156,10 @@ var _ = Describe("Observability Monitoring E2E Test Suite", func() {
 			readyReplicas := fields[1]
 			availableReplicas := fields[3]
 
+			if deploymentName == "rancher-monitoring-grafana-image-renderer" {
+				foundGrafanaRenderer = true
+			}
+
 			readyCount := strings.Split(readyReplicas, "/")[0]
 			desiredCount := strings.Split(readyReplicas, "/")[1]
 
@@ -161,6 +167,9 @@ var _ = Describe("Observability Monitoring E2E Test Suite", func() {
 
 			Expect(readyCount).To(Equal(desiredCount), "Deployment %s is not fully ready. Desired: %s, Ready: %s", deploymentName, desiredCount, readyCount)
 		}
+
+		Expect(foundGrafanaRenderer).To(BeTrue(), "Deployment rancher-monitoring-grafana-image-renderer not found in cattle-monitoring-system namespace")
+
 	})
 
 	It("[QASE-6830] Test : Verify status of rancher-monitoring DaemonSets using kubectl", Label("LEVEL1", "monitoring", "E2E"), func() {
