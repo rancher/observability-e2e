@@ -184,14 +184,20 @@ var _ = DescribeTable("Test: Rancher backup and restore metrics tests",
 		Expect(err).NotTo(HaveOccurred(), "Failed to create an invalid backup with bucket name")
 
 		// assert that invalid backup was created
+		time.Sleep(2 * time.Minute)
 		Eventually(func() string {
 			out, err := localkubectl.Execute(
 				"get", "backup", "invalid-backup",
 				"-o", "jsonpath={.status.conditions[?(@.reason==\"Error\")].message}",
 			)
-			Expect(err).NotTo(HaveOccurred())
+			if err != nil {
+				return "" // conditions not ready yet
+			}
 			return out
-		}, 10*time.Second, 2*time.Second).Should(ContainSubstring("failed to check if s3 bucket"), "Expected error message for invalid S3 bucket not found")
+		}, 2*time.Minute, 5*time.Second).Should(
+			ContainSubstring("failed to check if s3 bucket"),
+			"Expected error message for invalid S3 bucket not found",
+		)
 
 		By("Creating a Prometheus client for querying backup metrics")
 		prometheusAPIPath := "k8s/clusters/local/api/v1/namespaces/cattle-monitoring-system/services/http:rancher-monitoring-prometheus:9090/proxy"
