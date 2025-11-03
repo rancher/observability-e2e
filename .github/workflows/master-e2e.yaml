@@ -50,7 +50,7 @@ on:
         required: false
 
 env:
-  image_id: ami-00eb69d236edcfaf8
+  image_id: ami-0d9a665f802ae6227
   instance_type: t2.2xlarge
   instance_name: observability-e2e-runner
 
@@ -361,7 +361,7 @@ jobs:
         run: |
           CATTLE_TEST_CONFIG=$GITHUB_WORKSPACE/cattle-config.yaml \
           TEST_LABEL_FILTER=installation \
-          go test -timeout 20m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-installation.txt
+          go test -timeout 30m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-installation.txt
 
       - name: Run E2E Tests
         id: run_e2e_tests

@@ -23,6 +23,8 @@ jobs:
           - k3s_version: v1.32.8+k3s1
             rancher_version: latest/devel/head
       fail-fast: false
+      # This expression sets max-parallel to 1 for schedules, and 4 for all other events
+      max-parallel: ${{ github.event_name == 'schedule' && 1 || 4 }}
 
     steps:
       - name: Set environment variables
@@ -53,6 +55,7 @@ jobs:
       - name: Install K3S Version ${{ matrix.k3s_version }} & Rancher Version ${{ matrix.rancher_version }}
         id: install_k3s_and_rancher
         run: |
+          sleep 120
           set -e
           go test -timeout 30m -run ^TestE2E$ github.com/rancher/observability-e2e/installations/k3s -v -count=1 -ginkgo.v
 
@@ -73,6 +76,7 @@ jobs:
       - name: Run Installation Charts Tests For Backup and Restore
         id: run_installation_tests_backup_restore
         run: |
+          sleep 60
           set -e
           mv ./tests/helper/yamls/inputBackupRestoreConfig.yaml.example ./tests/helper/yamls/inputBackupRestoreConfig.yaml
           TEST_LABEL_FILTER=installation go test -timeout 20m github.com/rancher/observability-e2e/tests/backuprestore/functional -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-installation-${{ matrix.k3s_version }}.txt
@@ -80,6 +84,7 @@ jobs:
       - name: Run Observability Upgrade tests
         id: run_observability_upgrade_tests
         run: |
+          sleep 60
           set -e
           TEST_LABEL_FILTER=beforeUpgrade go test -timeout 20m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-upgrade-${{ matrix.k3s_version }}.txt
           TEST_LABEL_FILTER=E2E go test -timeout 30m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-e2e-${{ matrix.k3s_version }}.txt
