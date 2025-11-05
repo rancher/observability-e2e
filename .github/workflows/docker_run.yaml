@@ -15,8 +15,10 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        tag: ['v2.10-head', 'v2.11-head', 'v2.12-head', 'head'] # Rancher version tags
+        tag: ['v2.11-head', 'v2.12-head', 'head'] # Rancher version tags
       fail-fast: false
+      # This expression sets max-parallel to 1 for schedules, and 4 for all other events
+      max-parallel: ${{ github.event_name == 'schedule' && 1 || 4 }}
 
     steps:
       - name: Generate random password
@@ -107,6 +109,7 @@ jobs:
       - name: Run Observability Charts Tests
         id: run_observability_tests
         run: |
+          sleep 60
           set -e
           TEST_LABEL_FILTER=installation go test -timeout 20m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-installation-${{ matrix.tag }}.txt
           TEST_LABEL_FILTER=E2E go test -timeout 30m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-e2e-${{ matrix.tag }}.txt
@@ -121,6 +124,7 @@ jobs:
       - name: Run Observability Upgrade tests
         id: run_observability_upgrade_tests
         run: |
+          sleep 60
           set -e
           TEST_LABEL_FILTER=beforeUpgrade go test -timeout 20m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-upgrade-${{ matrix.tag }}.txt
           TEST_LABEL_FILTER=E2E go test -timeout 30m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-e2e-${{ matrix.tag }}.txt
