@@ -7,7 +7,7 @@ on:
       - 'main'
   workflow_dispatch:
   schedule:
-    - cron: '0 1 * * *'  # Runs daily at 1:00 AM UTC (6:30 AM IST)
+    - cron: '0 4 * * *'  # Runs daily at 4:00 AM UTC (9:30 AM IST)
 
 jobs:
   setup_rancher:
@@ -55,7 +55,7 @@ jobs:
       - name: Install K3S Version ${{ matrix.k3s_version }} & Rancher Version ${{ matrix.rancher_version }}
         id: install_k3s_and_rancher
         run: |
-          sleep 120
+          sleep 60
           set -e
           go test -timeout 30m -run ^TestE2E$ github.com/rancher/observability-e2e/installations/k3s -v -count=1 -ginkgo.v
 
@@ -68,9 +68,10 @@ jobs:
       - name: Run Observability Charts Tests
         id: run_observability_tests
         run: |
-          sleep 60
+          sleep 180
           set -e
           TEST_LABEL_FILTER=installation go test -timeout 20m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-installation-${{ matrix.k3s_version }}.txt
+          sleep 120
           TEST_LABEL_FILTER=E2E go test -timeout 30m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-e2e-${{ matrix.k3s_version }}.txt
 
       - name: Run Installation Charts Tests For Backup and Restore
@@ -87,8 +88,11 @@ jobs:
           sleep 60
           set -e
           TEST_LABEL_FILTER=beforeUpgrade go test -timeout 20m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-upgrade-${{ matrix.k3s_version }}.txt
+          sleep 120
           TEST_LABEL_FILTER=E2E go test -timeout 30m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-e2e-${{ matrix.k3s_version }}.txt
+          sleep 120
           TEST_LABEL_FILTER=afterUpgrade go test -timeout 20m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-upgrade-${{ matrix.k3s_version }}.txt
+          sleep 120
           TEST_LABEL_FILTER=E2E go test -timeout 30m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-e2e-${{ matrix.k3s_version }}.txt
 
       - name: Run Tests and Prepare Artifact Name
