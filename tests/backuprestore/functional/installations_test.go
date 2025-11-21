@@ -38,6 +38,10 @@ var _ = Describe("Parameterized Backup and Restore Chart Installation Tests", fu
 				clientWithSession *rancher.Client
 				err               error
 			)
+			testName := CurrentSpecReport().LeafNodeText
+			for _, id := range charts.ExtractQaseIDs(testName) {
+				testCaseIDs = append(testCaseIDs, int64(id))
+			}
 
 			By("Creating a client session")
 			clientWithSession, err = client.WithSession(sess)
@@ -98,22 +102,26 @@ var _ = Describe("Parameterized Backup and Restore Chart Installation Tests", fu
 		},
 
 		// **Test Case: Install with S3 Storage**
-		Entry("Install and Uninstall Backup Restore Chart with S3 Storage", Label("LEVEL0", "backup-restore", "s3", "installation"), charts.BackupParams{
-			StorageType: "s3",
-			BackupOptions: charts.BackupOptions{
-				Name:           namegen.AppendRandomString("backup"),
-				RetentionCount: 10,
-			},
-		}),
+		charts.QaseEntry("[QASE-8271,8272] Install and Uninstall Backup Restore Chart with S3 Storage",
+			[]interface{}{Label("LEVEL0", "backup-restore", "s3", "installation")},
+			charts.BackupParams{
+				StorageType: "s3",
+				BackupOptions: charts.BackupOptions{
+					Name:           namegen.AppendRandomString("backup"),
+					RetentionCount: 10,
+				},
+			}),
 
 		// **Test Case: Install with local Storage**
-		Entry("Install and Uninstall Backup Restore Chart with Local Storage Class", Label("LEVEL0", "backup-restore", "local", "installation"), charts.BackupParams{
-			StorageType: "storageClass",
-			BackupOptions: charts.BackupOptions{
-				Name:           namegen.AppendRandomString("backup"),
-				RetentionCount: 10,
-			},
-		}),
+		charts.QaseEntry("[QASE-8271,8272] Install and Uninstall Backup Restore Chart with Local Storage Class",
+			[]interface{}{Label("LEVEL0", "backup-restore", "local", "installation")},
+			charts.BackupParams{
+				StorageType: "storageClass",
+				BackupOptions: charts.BackupOptions{
+					Name:           namegen.AppendRandomString("backup"),
+					RetentionCount: 10,
+				},
+			}),
 	)
 
 })

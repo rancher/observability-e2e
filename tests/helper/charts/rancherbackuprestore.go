@@ -7,9 +7,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
+	. "github.com/onsi/ginkgo/v2"
 	bv1 "github.com/rancher/backup-restore-operator/pkg/apis/resources.cattle.io/v1"
 	localConfig "github.com/rancher/observability-e2e/tests/helper/config"
 	"github.com/rancher/observability-e2e/tests/helper/utils"
@@ -747,4 +750,34 @@ func InstallLatestBackupRestoreChart(
 	}
 
 	return installParams.ChartVersion, nil
+}
+
+// ✅ Extract multiple QASE IDs from the test name.
+// Supports: [QASE-123], [QASE-123,456], or multiple tags like [QASE-123] [QASE-789].
+func ExtractQaseIDs(name string) []int {
+	re := regexp.MustCompile(`\[QASE-([\d,]+)\]`)
+	matches := re.FindAllStringSubmatch(name, -1)
+
+	var ids []int
+	for _, match := range matches {
+		if len(match) > 1 {
+			for _, idStr := range strings.Split(match[1], ",") {
+				id, err := strconv.Atoi(strings.TrimSpace(idStr))
+				if err == nil {
+					ids = append(ids, id)
+				}
+			}
+		}
+	}
+	return ids
+}
+
+// ✅ Helper wrapper for Entry()
+// Extracts one or more QASE IDs and adds all as labels automatically.
+func QaseEntry(text string, labels []interface{}, params interface{}) TableEntry {
+	qaseIDs := ExtractQaseIDs(text)
+	for _, id := range qaseIDs {
+		labels = append(labels, Label(fmt.Sprintf("QASE-%d", id)))
+	}
+	return Entry(text, append(labels, params)...)
 }

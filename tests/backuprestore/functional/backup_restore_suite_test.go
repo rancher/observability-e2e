@@ -27,6 +27,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	. "github.com/rancher-sandbox/qase-ginkgo"
 	"github.com/rancher/norman/types"
 	"github.com/rancher/observability-e2e/resources"
 	"github.com/rancher/observability-e2e/tests/helper/charts"
@@ -80,6 +81,22 @@ var envTerraformVarMap = map[string]string{
 	"RKE2_VERSION":         "rke2_version",
 	"RANCHER_REPO_URL":     "rancher_repo_url",
 }
+
+var testCaseIDs []int64
+
+var _ = ReportAfterEach(func(report SpecReport) {
+	if len(testCaseIDs) == 0 {
+		return
+	}
+
+	// Add result in Qase for each ID
+	for _, id := range testCaseIDs {
+		Qase(id, report)
+	}
+
+	// Reset after each test
+	testCaseIDs = nil
+})
 
 func FailWithReport(message string, callerSkip ...int) {
 	// Ensures the correct line numbers are reported
@@ -238,8 +255,8 @@ var _ = AfterSuite(func() {
 	if !strings.Contains(labelFilter, "installation") {
 		By("Destroying Terraform infrastructure")
 		if tfCtx != nil {
-			_, err := tfCtx.Destroy()
-			Expect(err).ToNot(HaveOccurred(), "Failed to destroy Terraform resources")
+			_, err := tfCtx.DestroyTarget("module.ec2.aws_instance.rke2_node")
+			Expect(err).ToNot(HaveOccurred(), "Failed to Destroy Terraform Resource")
 		}
 	}
 

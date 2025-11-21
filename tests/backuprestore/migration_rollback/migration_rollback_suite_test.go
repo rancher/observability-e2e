@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	. "github.com/rancher-sandbox/qase-ginkgo"
 	"github.com/rancher/norman/types"
 	"github.com/rancher/observability-e2e/resources"
 	"github.com/rancher/observability-e2e/tests/helper/charts"
@@ -76,6 +77,22 @@ const (
 	exampleAppProjectName = "System"
 	providerName          = "aws"
 )
+
+var testCaseIDs []int64
+
+var _ = ReportAfterEach(func(report SpecReport) {
+	if len(testCaseIDs) == 0 {
+		return
+	}
+
+	// Add result in Qase for each ID
+	for _, id := range testCaseIDs {
+		Qase(id, report)
+	}
+
+	// Reset after each test
+	testCaseIDs = nil
+})
 
 func FailWithReport(message string, callerSkip ...int) {
 	// Ensures the correct line numbers are reported

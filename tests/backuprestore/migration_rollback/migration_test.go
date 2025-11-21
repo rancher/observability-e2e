@@ -52,6 +52,12 @@ var _ = DescribeTable("Test: Validate the Backup and Restore Migration Scenario 
 	func(params MigrationParams) {
 		By("Checking that the Terraform context is valid")
 		Expect(tfCtx).ToNot(BeNil())
+
+		testName := CurrentSpecReport().LeafNodeText
+		for _, id := range charts.ExtractQaseIDs(testName) {
+			testCaseIDs = append(testCaseIDs, int64(id))
+		}
+
 		var (
 			clientWithSession *rancher.Client
 			err               error
@@ -244,22 +250,24 @@ var _ = DescribeTable("Test: Validate the Backup and Restore Migration Scenario 
 	},
 
 	// **Test Case: Rancher inplace backup and restore test scenarios
-	Entry("(with encryption)", Label("LEVEL0", "backup-restore", "migration"), MigrationParams{
-		StorageType: "s3",
-		BackupOptions: charts.BackupOptions{
-			Name:                       namegen.AppendRandomString("backup"),
-			RetentionCount:             10,
-			EncryptionConfigSecretName: "encryptionconfig",
-		},
-		BackupFileExtension: ".tar.gz.enc",
-		ProvisioningInput: charts.ProvisioningConfig{
-			RKE2KubernetesVersions: []string{utils.GetEnvOrDefault("RKE2_VERSION", "v1.31.5+rke2r1")},
-			Providers:              []string{"aws"},
-			NodeProviders:          []string{"ec2"},
-			CNIs:                   []string{"calico"},
-		},
-		Prune:                    false,
-		CreateCluster:            true,
-		EncryptionConfigFilePath: charts.EncryptionConfigFilePath,
-	}),
+	Entry("[QASE-1906] (with encryption)",
+		[]interface{}{Label("LEVEL0", "backup-restore", "migration")},
+		MigrationParams{
+			StorageType: "s3",
+			BackupOptions: charts.BackupOptions{
+				Name:                       namegen.AppendRandomString("backup"),
+				RetentionCount:             10,
+				EncryptionConfigSecretName: "encryptionconfig",
+			},
+			BackupFileExtension: ".tar.gz.enc",
+			ProvisioningInput: charts.ProvisioningConfig{
+				RKE2KubernetesVersions: []string{utils.GetEnvOrDefault("RKE2_VERSION", "v1.31.5+rke2r1")},
+				Providers:              []string{"aws"},
+				NodeProviders:          []string{"ec2"},
+				CNIs:                   []string{"calico"},
+			},
+			Prune:                    false,
+			CreateCluster:            true,
+			EncryptionConfigFilePath: charts.EncryptionConfigFilePath,
+		}),
 )
