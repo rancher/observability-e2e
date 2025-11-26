@@ -196,7 +196,7 @@ jobs:
                 --set bootstrapPassword='${{ secrets.rancher_password }}' \
                 --set global.cattle.psp.enabled=false \
                 --set rancherImageTag='${{ inputs.rancher_version }}' \
-                --set rancherImage="$(if echo '${{ inputs.rancher_repo }}' | grep -q 'releases.rancher.com'; then echo 'rancher/rancher'; else echo 'stgregistry.suse.com/rancher/rancher'; fi)" \
+                --set rancherImage="$(if echo '${{ inputs.rancher_repo }}' | grep -q 'releases.rancher.com'; then echo 'rancher/rancher'; elif echo '${{ inputs.rancher_repo }}' | grep -q 'charts.rancher.com'; then echo 'registry.rancher.com/rancher/rancher'; else echo 'stgregistry.suse.com/rancher/rancher'; fi)" \
                 --wait \
                 --timeout=10m \
                 --create-namespace \
