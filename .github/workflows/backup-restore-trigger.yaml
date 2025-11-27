@@ -1,4 +1,4 @@
-name: Backup Restore Migration/Upgrade/Rollback Test Trigger
+name: Backup Restore Test Trigger
 
 run-name: >
   Rancher=${{ inputs.rancher_version }}, RKE2 Version=${{ inputs.upstream_cluster_version }}, destroy=${{ inputs.destroy_runner }}
@@ -30,7 +30,7 @@ on:
         type: boolean
       rancher_repo:
         description: Rancher Manager repository
-        default: https://releases.rancher.com/server-charts/latest
+        default: https://charts.rancher.com/server-charts/alpha
         type: string
         required: true
       rollback_rancher_repo:
@@ -43,11 +43,29 @@ on:
         default: 106.0.2+up7.0.1
         type: string
         required: true
+      test_suite:
+        description: "Select which test suite(s) to run"
+        required: true
+        type: choice
+        options:
+          - all
+          - functional
+          - migration
+          - upgrade_rollback
+          - upgrade_rollback_migration
+        default: all
+
+      # Add a Qase run ID input (can be 'auto', 'none', or a numeric run ID)
+      qase_run_id:
+        description: Qase run ID for reporting (e.g., 'auto', 'none', or an ID like '123')
+        default: 'none'
+        type: string
+        required: false
 
 
 jobs:
   e2e:
-    uses: ./.github/workflows/backup-restore-migration-rollback.yaml
+    uses: ./.github/workflows/backup-restore-e2e.yaml
     with:
       destroy_runner: ${{ inputs.destroy_runner }}
       rancher_version: ${{ inputs.rancher_version }}
@@ -57,6 +75,8 @@ jobs:
       rollback_rancher_version: ${{ inputs.rollback_rancher_version }}
       rollback_upstream_cluster_version: ${{ inputs.rollback_upstream_cluster_version }}
       rollback_rancher_repo: ${{ inputs.rollback_rancher_repo }}
+      test_suite: ${{ inputs.test_suite }}
+      qase_run_id: ${{ inputs.qase_run_id }}
     secrets:
       aws_access_key: ${{ secrets.BR_AWS_ACCESS_KEY_ID }}
       aws_secret_key: ${{ secrets.BR_AWS_SECRET_ACCESS_KEY }}
@@ -65,3 +85,4 @@ jobs:
       aws_region: ${{ secrets.BR_AWS_REGION }}
       key_name: ${{ secrets.BR_AWS_KEY_NAME }}
       encryption_secret_key: ${{ secrets.BR_ENCRYPTION_SECRET_KEY }}
+      qase_api_token: ${{ secrets.BR_QASE_API_TOKEN }}
