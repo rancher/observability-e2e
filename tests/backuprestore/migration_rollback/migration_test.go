@@ -46,6 +46,13 @@ type MigrationParams struct {
 	EncryptionConfigFilePath string
 }
 
+const (
+	FleetNS  = "fleet-local"
+	RepoName = "fleet-tests"
+	AppNS    = "nginx-keep" // Namespace where simple-app is deployed
+	AppName  = "nginx-keep" // Name of the deployment
+)
+
 var clusterNameMigration string
 
 var _ = DescribeTable("Test: Validate the Backup and Restore Migration Scenario from RKE2 to RKE2",
@@ -103,6 +110,13 @@ var _ = DescribeTable("Test: Validate the Backup and Restore Migration Scenario 
 			err := charts.DeleteStorageResources(params.StorageType, clientWithSession, BackupRestoreConfig)
 			Expect(err).NotTo(HaveOccurred())
 		})
+		// use fleet to add the workload on the downstream cluster and verify it added successfully
+		By("Applying the Fleet GitRepo yaml")
+		_, err = localkubectl.Execute("apply", "-f", utils.GetYamlPath("tests/helper/yamls/fleetGitRepos.yaml"))
+		Expect(err).NotTo(HaveOccurred(), "Failed to create fleet git repos.")
+
+		// We use our helper here to ensure everything synced correctly the first time
+		charts.VerifyFleetState(RepoName, FleetNS, AppName, AppNS)
 
 		// Get the latest version of the backup restore chart
 		By("Update the rancher to use the latest backup and restore chart")
@@ -247,6 +261,9 @@ var _ = DescribeTable("Test: Validate the Backup and Restore Migration Scenario 
 			e2e.Failf("cluster %s is not Active", clusterNameMigration)
 		}
 		Expect(err).NotTo(HaveOccurred(), "Downstream Cluster is not getting Active. ")
+
+		By("Verify that GitRepo was restored AND Fleet controller reconciled it again.")
+		charts.VerifyFleetState(RepoName, FleetNS, AppName, AppNS)
 	},
 
 	// **Test Case: Rancher inplace backup and restore test scenarios
