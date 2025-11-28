@@ -13,8 +13,10 @@ import (
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 	bv1 "github.com/rancher/backup-restore-operator/pkg/apis/resources.cattle.io/v1"
 	localConfig "github.com/rancher/observability-e2e/tests/helper/config"
+	localkubectl "github.com/rancher/observability-e2e/tests/helper/kubectl"
 	"github.com/rancher/observability-e2e/tests/helper/utils"
 	catalogv1 "github.com/rancher/rancher/pkg/apis/catalog.cattle.io/v1"
 	"github.com/rancher/rancher/tests/v2/actions/projects"
@@ -749,6 +751,40 @@ func InstallLatestBackupRestoreChart(
 	}
 
 	return installParams.ChartVersion, nil
+}
+
+// VerifyFleetState checks that the GitRepo is Ready and the downstream app is running.
+func VerifyFleetState(gitRepoName string, fleetNamespace string, appDeploymentName string, appNamespace string) {
+	const (
+		Timeout = 2 * time.Minute
+		Poll    = 5 * time.Second
+	)
+
+	By(fmt.Sprintf("Verifying GitRepo %s in namespace %s is Ready", gitRepoName, fleetNamespace))
+	Eventually(func() string {
+		out, err := localkubectl.Execute("get", "gitrepo", gitRepoName,
+			"-n", fleetNamespace,
+			"-o", "jsonpath={.status.conditions[?(@.type=='Ready')].status}")
+
+		if err != nil {
+			return ""
+		}
+		return out
+	}, Timeout, Poll).Should(Equal("True"), "GitRepo Condition 'Ready' should be 'True'")
+
+	By(fmt.Sprintf("Verifying fleet workload %s in namespace %s is Available", appDeploymentName, appNamespace))
+	Eventually(func() string {
+		// Check if the deployment exists and has available replicas
+		out, err := localkubectl.Execute("get", "deployment", appDeploymentName,
+			"-n", appNamespace,
+			"-o", "jsonpath={.status.availableReplicas}")
+
+		// If error or field missing, return "0"
+		if err != nil || out == "" {
+			return "0"
+		}
+		return out
+	}, Timeout, Poll).ShouldNot(Equal("0"), "Workload should have available replicas > 0")
 }
 
 // ✅ Extract multiple QASE IDs from the test name.

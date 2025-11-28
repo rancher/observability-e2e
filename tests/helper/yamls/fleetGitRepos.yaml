@@ -1,0 +1,13 @@
+kind: GitRepo
+apiVersion: fleet.cattle.io/v1alpha1
+metadata:
+    name: fleet-tests
+    namespace: fleet-local # this is for local-cluster needs to be fleet-local namespace
+spec:
+  repo: https://github.com/rancher/fleet-test-data/
+  branch: master
+  paths:
+  - qa-test-apps/nginx-app
+  pollingInterval: 1m0s
+  targets:
+    - clusterName: local
