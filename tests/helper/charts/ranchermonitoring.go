@@ -58,6 +58,11 @@ func InstallRancherMonitoringChart(client *rancher.Client, installOptions *Insta
 				"enabled": true,
 			},
 		},
+		"grafana": map[string]interface{}{
+			"imageRenderer": map[string]interface{}{
+				"enabled": true,
+			},
+		},
 	}
 
 	// Convert rancherMonitoringOpts to a map for easier manipulation.
@@ -194,6 +199,11 @@ func UpgradeRancherMonitoringChart(client *rancher.Client, installOptions *Insta
 				"evaluationInterval": "1m",
 				"retentionSize":      "50GiB",
 				"scrapeInterval":     "1m",
+			},
+		},
+		"grafana": map[string]interface{}{
+			"imageRenderer": map[string]interface{}{
+				"enabled": true,
 			},
 		},
 	}
