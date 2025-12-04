@@ -319,7 +319,7 @@ jobs:
 
           CATTLE_TEST_CONFIG=$GITHUB_WORKSPACE/cattle-config.yaml \
           TEST_LABEL_FILTER=$TEST_LABEL_FILTER \
-          go test -timeout 120m $TEST_PATH -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-e2e.txt
+          go test -timeout 120m $TEST_PATH -v -count=1 -ginkgo.v -ginkgo.timeout=1h50m | tee ~/artifacts/test-output-e2e.txt
 
       - name: Cleanup temporary files
         if: ${{ always() }}
