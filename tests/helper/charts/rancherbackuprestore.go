@@ -554,7 +554,6 @@ func ValidateBackupFile(basePath string) error {
 		"cattle-global-data",
 		"cattle-fleet-local-system",
 		"cattle-impersonation-system",
-		"cattle-provisioning-capi-system",
 		"cattle-resources-system",
 	}
 
