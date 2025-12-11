@@ -1,11 +1,11 @@
 variable "ami_id" {}
 variable "instance_type" {}
-variable "key_name" {}
+variable "key_name" { sensitive = true }
 variable "root_volume_size" {}
 variable "prefix" { sensitive = true }
 variable "subnet_id" { sensitive = true }
 variable "vpc_id" { sensitive = true }
-variable "security_group_id" {}
+variable "security_group_id" { sensitive = true }
 variable "private_key_path" { sensitive = true }
 variable "preserve_eip" {
   type    = bool
@@ -13,9 +13,9 @@ variable "preserve_eip" {
 }
 variable "rke2_version" {}
 variable "cert_manager_version" {}
-variable "encryption_secret_key" {}
-variable "input_cluster_config" {}
-variable "cattle_config" {}
+variable "encryption_secret_key" { sensitive = true }
+variable "input_cluster_config" { sensitive = true }
+variable "cattle_config" { sensitive = true }
 variable "rancher_version" {
 }
 
