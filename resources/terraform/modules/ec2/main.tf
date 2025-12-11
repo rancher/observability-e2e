@@ -123,23 +123,23 @@ resource "null_resource" "move_kubeconfig_local" {
 }
 
 resource "null_resource" "update_yaml" {
-  provisioner "local-exec" {
-    command = <<EOT
-      if [ -f "${var.input_cluster_config}" ]; then
-        yq e '.machineconfig.data.subnetId = "${var.subnet_id}" | .machineconfig.data.vpcId = "${var.vpc_id}"' \
-          -i "${var.input_cluster_config}"
-      else
-        echo "Warning: inputClusterConfig.yaml not found. Skipping update."
-      fi
-
-      if [ -f "${var.cattle_config}" ]; then
-        yq e '.rancher.host = "rancher.${local.rke2_host_ip}.sslip.io"' \
-          -i "${var.cattle_config}"
-      else
-        echo "Warning: ${var.cattle_config} not found. Skipping update."
-      fi
-    EOT
+  triggers = {
+    subnet_id = var.subnet_id
+    vpc_id    = var.vpc_id
+    host_ip   = local.rke2_host_ip
   }
 
-  depends_on = [aws_instance.rke2_node]
+  provisioner "local-exec" {
+    # The command is now clean and contains no sensitive data
+    command = "/bin/bash ${path.module}/update_configs.sh"
+
+    # Pass secrets securely as environment variables
+    environment = {
+      INPUT_CONFIG_PATH  = var.input_cluster_config
+      SUBNET_ID          = var.subnet_id
+      VPC_ID             = var.vpc_id
+      CATTLE_CONFIG_PATH = var.cattle_config
+      RKE2_HOST_IP       = local.rke2_host_ip
+    }
+  }
 }

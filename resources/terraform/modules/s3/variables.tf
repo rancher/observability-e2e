@@ -6,4 +6,5 @@ variable "aws_region_s3" {
 variable "prefix" {
   description = "Prefix to use for S3 bucket name"
   type        = string
+  sensitive   = true
 }
