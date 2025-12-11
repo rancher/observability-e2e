@@ -2,11 +2,11 @@ variable "ami_id" {}
 variable "instance_type" {}
 variable "key_name" {}
 variable "root_volume_size" {}
-variable "prefix" {}
-variable "subnet_id" {}
-variable "vpc_id" {}
+variable "prefix" { sensitive = true }
+variable "subnet_id" { sensitive = true }
+variable "vpc_id" { sensitive = true }
 variable "security_group_id" {}
-variable "private_key_path" {}
+variable "private_key_path" { sensitive = true }
 variable "preserve_eip" {
   type    = bool
   default = true
