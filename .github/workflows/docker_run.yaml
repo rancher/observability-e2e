@@ -40,7 +40,17 @@ jobs:
               --privileged "$IMAGE"
 
       - name: Wait for Rancher to initialize
-        run: sleep 3m  # Rancher's startup time
+        continue-on-error: true
+        run: |
+          sleep 3m  # Rancher's startup time
+          # Wait for deployment to exist (30 retries * 20s = 600s timeout)
+          for i in {1..30}; do
+              docker exec rancher kubectl -n cattle-system get deployment rancher-webhook &>/dev/null && break
+              sleep 10
+          done
+
+          # Wait for rollout to complete (Fail if previous step timed out)
+          docker exec rancher kubectl -n cattle-system rollout status deployment/rancher-webhook --timeout=180s
 
       - name: Generate Rancher API token
         id: get_token
