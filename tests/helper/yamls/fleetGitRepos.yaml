@@ -1,0 +1,13 @@
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: fleet-tests
+  namespace: fleet-local # this is for local-cluster needs to be fleet-local namespace
+spec:
+  branch: main
+  paths:
+    - simple-app
+  repo: https://github.com/omkarkhatavkar/fleet-tests
+  pollingInterval: 1m0s
+  targets:
+    - clusterName: local
