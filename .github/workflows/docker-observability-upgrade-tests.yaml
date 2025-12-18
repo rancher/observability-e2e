@@ -1,17 +1,13 @@
-name: Docker Rancher Setup, Chart Installation & E2E Tests
+name: Observability Upgrade Tests
 
 on:
-  push:
-  pull_request:
-    branches:
-      - 'main'
   workflow_dispatch:
   schedule:
-    - cron: '0 0 * * *'  # Runs daily at 12:00 AM UTC (5:30 AM IST)
+    - cron: '0 0 * * 1,3,5'  # Runs on alternate days (Monday, Wednesday, Friday) at 12:00 AM UTC
 
 jobs:
-  setup_rancher:
-    name: Setup Rancher - Tag - ${{ matrix.tag }}
+  observability_upgrade_tests:
+    name: Observability Upgrade - Tag - ${{ matrix.tag }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -27,7 +23,7 @@ jobs:
 
       - name: Start Rancher container
         run: |
-          if [[ "${{ matrix.tag }}" == "v2.10-head" || "${{ matrix.tag }}" == "v2.11-head" ]]; then
+          if [[ "${{ matrix.tag }}" == "v2.11-head" ]]; then
               IMAGE="stgregistry.suse.com/rancher/rancher:${{ matrix.tag }}"
           else
               IMAGE="rancher/rancher:${{ matrix.tag }}"
@@ -116,21 +112,6 @@ jobs:
       - name: Create artifacts directory
         run: mkdir -p ~/artifacts
 
-      - name: Run Observability Charts Tests
-        id: run_observability_tests
-        run: |
-          sleep 60
-          set -e
-          TEST_LABEL_FILTER=installation go test -timeout 20m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-installation-${{ matrix.tag }}.txt
-          TEST_LABEL_FILTER=E2E go test -timeout 30m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-e2e-${{ matrix.tag }}.txt
-
-      - name: Run Installation Charts Tests For Backup and Restore
-        id: run_installation_tests_backup_restore
-        run: |
-          set -e
-          mv ./tests/helper/yamls/inputBackupRestoreConfig.yaml.example ./tests/helper/yamls/inputBackupRestoreConfig.yaml
-          TEST_LABEL_FILTER=installation go test -timeout 20m github.com/rancher/observability-e2e/tests/backuprestore/functional -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-installation-${{ matrix.tag }}.txt
-
       - name: Run Observability Upgrade tests
         id: run_observability_upgrade_tests
         run: |
@@ -144,7 +125,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: test-artifacts-${{ matrix.tag }}
+          name: test-artifacts-upgrade-${{ matrix.tag }}
           path: ~/artifacts
 
       - name: Cleanup all containers
