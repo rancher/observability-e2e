@@ -1,0 +1,116 @@
+name: K3S Backup and Restore Tests
+
+on:
+  pull_request:
+    branches:
+      - 'main'
+  workflow_dispatch:
+  schedule:
+    - cron: '30 21 * * 2,4'  # Runs Tue/Thu at 9:30 PM UTC (3:00 AM IST next day)
+
+jobs:
+  k3s_backup_restore_tests:
+    name: K3S Backup & Restore - K3S ${{ matrix.k3s_version }} - Rancher ${{ matrix.rancher_version }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - k3s_version: v1.33.7+k3s1
+            rancher_version: head/devel/2.13
+          - k3s_version: v1.34.3+k3s1
+            rancher_version: latest/devel/head
+      fail-fast: false
+      # This expression sets max-parallel to 1 for schedules, and 4 for all other events
+      max-parallel: ${{ github.event_name == 'schedule' && 1 || 4 }}
+
+    steps:
+      - name: Set environment variables
+        run: |
+          echo "HOSTNAME_NAME=localhost" >> $GITHUB_ENV
+          echo "RANCHER_VERSION=${{ matrix.rancher_version }}" >> $GITHUB_ENV
+          echo "K3S_VERSION=${{ matrix.k3s_version }}" >> $GITHUB_ENV
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl jq
+
+      - name: Set up Permissions
+        run: |
+          sudo mkdir -p /etc/rancher/k3s
+          sudo chown -R runner:runner /etc/rancher/k3s
+          sudo mkdir -p $HOME/.kube
+          sudo chown -R runner:runner $HOME/.kube
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: './go.mod'
+
+      - name: Install K3S Version ${{ matrix.k3s_version }} & Rancher Version ${{ matrix.rancher_version }}
+        id: install_k3s_and_rancher
+        run: |
+          sleep 120
+          set -e
+          go test -timeout 30m -run ^TestE2E$ github.com/rancher/observability-e2e/installations/k3s -v -count=1 -ginkgo.v
+
+      - name: Create artifacts directory
+        run: mkdir -p ~/artifacts
+
+      - name: Export CATTLE_TEST_CONFIG environment variable
+        run: echo "CATTLE_TEST_CONFIG=$HOME/cattle-config.yaml" >> $GITHUB_ENV
+
+      - name: Wait for Rancher API to be ready
+        run: |
+          echo "Waiting for Rancher API to be fully responsive..."
+          for i in {1..30}; do
+            if kubectl get nodes &>/dev/null && curl -k --silent --max-time 5 https://localhost/v3 &>/dev/null; then
+              echo "Rancher API is ready"
+              sleep 30  # Additional buffer time
+              break
+            fi
+            echo "Attempt $i: Rancher API not ready, waiting 10 seconds..."
+            sleep 10
+          done
+
+      - name: Run Installation Charts Tests For Backup and Restore
+        id: run_installation_tests_backup_restore
+        run: |
+          sleep 90
+          set -e
+          mv ./tests/helper/yamls/inputBackupRestoreConfig.yaml.example ./tests/helper/yamls/inputBackupRestoreConfig.yaml
+          TEST_LABEL_FILTER=installation go test -timeout 25m github.com/rancher/observability-e2e/tests/backuprestore/functional -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-installation-${{ matrix.k3s_version }}.txt
+
+      - name: Run Tests and Prepare Artifact Name
+        run: |
+          echo "ARTIFACT_NAME=test-artifacts-backup-restore-${{ matrix.k3s_version }}-$(echo '${{ matrix.rancher_version }}' | tr '/' '-')" >> $GITHUB_ENV
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ~/artifacts
+
+      - name: Cleanup all containers
+        if: always()
+        run: |
+          echo "Cleaning up all containers..."
+          docker ps -q | xargs -r docker rm -f
+
+      - name: Check Test Results and Mark Pipeline
+        if: always()
+        run: |
+          for log_file in ~/artifacts/*; do
+            if [[ -f "$log_file" ]]; then
+              if grep -q "FAIL!" "$log_file"; then
+                echo "K3S_VERSION=${{ matrix.k3s_version }} RANCHER_VERSION=${{ matrix.rancher_version }} failure encounter in $(basename "$log_file") contains failures!"
+                grep -A1 -B1 "FAIL!" "$log_file"
+                exit 1
+              else
+                echo "K3S_VERSION=${{ matrix.k3s_version }} RANCHER_VERSION=${{ matrix.rancher_version }} test successfully passed with version and file details -> $(basename "$log_file")"
+              fi
+            fi
+          done

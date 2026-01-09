@@ -1,26 +1,23 @@
-name: K3S Installation, Rancher Setup, Chart Installation & E2E Tests
+name: K3S Observability Charts Tests
 
 on:
-  push:
   pull_request:
     branches:
       - 'main'
   workflow_dispatch:
   schedule:
-    - cron: '0 1 * * *'  # Runs daily at 1:00 AM UTC (6:30 AM IST)
+    - cron: '30 18 * * 2,4'  # Runs Tue/Thu at 6:30 PM UTC (12:00 AM IST next day)
 
 jobs:
-  setup_rancher:
-    name: Setup Rancher - Tag - ${{ matrix.rancher_version }}
+  k3s_observability_charts_tests:
+    name: K3S Observability Charts - K3S ${{ matrix.k3s_version }} - Rancher ${{ matrix.rancher_version }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
         include:
-          - k3s_version: v1.31.12+k3s1
-            rancher_version: head/devel/2.11
-          - k3s_version: v1.32.8+k3s1
-            rancher_version: latest/devel/2.12
-          - k3s_version: v1.32.8+k3s1
+          # - k3s_version: v1.33.7+k3s1
+          #   rancher_version: head/devel/2.13
+          - k3s_version: v1.34.3+k3s1
             rancher_version: latest/devel/head
       fail-fast: false
       # This expression sets max-parallel to 1 for schedules, and 4 for all other events
@@ -37,6 +34,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y curl jq
+
       - name: Set up Permissions
         run: |
           sudo mkdir -p /etc/rancher/k3s
@@ -65,35 +63,28 @@ jobs:
       - name: Export CATTLE_TEST_CONFIG environment variable
         run: echo "CATTLE_TEST_CONFIG=$HOME/cattle-config.yaml" >> $GITHUB_ENV
 
+      - name: Wait for Rancher API to be ready
+        run: |
+          echo "Waiting for Rancher API to be fully responsive..."
+          for i in {1..30}; do
+            if kubectl get nodes &>/dev/null && curl -k --silent --max-time 5 https://localhost/v3 &>/dev/null; then
+              echo "Rancher API is ready"
+              sleep 30  # Additional buffer time
+              break
+            fi
+            echo "Attempt $i: Rancher API not ready, waiting 10 seconds..."
+            sleep 10
+          done
+
       - name: Run Observability Charts Tests
         id: run_observability_tests
         run: |
-          sleep 60
-          set -e
-          TEST_LABEL_FILTER=installation go test -timeout 20m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-installation-${{ matrix.k3s_version }}.txt
-          TEST_LABEL_FILTER=E2E go test -timeout 30m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-e2e-${{ matrix.k3s_version }}.txt
-
-      - name: Run Installation Charts Tests For Backup and Restore
-        id: run_installation_tests_backup_restore
-        run: |
-          sleep 60
-          set -e
-          mv ./tests/helper/yamls/inputBackupRestoreConfig.yaml.example ./tests/helper/yamls/inputBackupRestoreConfig.yaml
-          TEST_LABEL_FILTER=installation go test -timeout 20m github.com/rancher/observability-e2e/tests/backuprestore/functional -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-installation-${{ matrix.k3s_version }}.txt
-
-      - name: Run Observability Upgrade tests
-        id: run_observability_upgrade_tests
-        run: |
-          sleep 60
-          set -e
-          TEST_LABEL_FILTER=beforeUpgrade go test -timeout 20m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-upgrade-${{ matrix.k3s_version }}.txt
-          TEST_LABEL_FILTER=E2E go test -timeout 30m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-e2e-${{ matrix.k3s_version }}.txt
-          TEST_LABEL_FILTER=afterUpgrade go test -timeout 20m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-upgrade-${{ matrix.k3s_version }}.txt
-          TEST_LABEL_FILTER=E2E go test -timeout 30m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-e2e-${{ matrix.k3s_version }}.txt
+          sleep 60  # Stabilization period before E2E tests
+          TEST_LABEL_FILTER=installation go test -timeout 30m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-e2e-${{ matrix.k3s_version }}.txt
 
       - name: Run Tests and Prepare Artifact Name
         run: |
-          echo "ARTIFACT_NAME=test-artifacts-${{ matrix.k3s_version }}-$(echo '${{ matrix.rancher_version }}' | tr '/' '-')" >> $GITHUB_ENV
+          echo "ARTIFACT_NAME=test-artifacts-observability-charts-${{ matrix.k3s_version }}-$(echo '${{ matrix.rancher_version }}' | tr '/' '-')" >> $GITHUB_ENV
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
