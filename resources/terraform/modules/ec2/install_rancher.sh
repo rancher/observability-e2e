@@ -33,7 +33,7 @@ RANCHER_HOSTNAME="rancher.${PUBLIC_IP}.sslip.io"
 if [[ "$RANCHER_VERSION" == *"head"* ]]; then
   echo "🚀 Installing Rancher from HEAD build: $RANCHER_VERSION ..."
   helm install rancher rancher/rancher --namespace cattle-system \
-    --set hostname=$RANCHER_HOSTNAME \
+    --set hostname="$RANCHER_HOSTNAME" \
     --set replicas=2 \
     --set bootstrapPassword="$RANCHER_PASSWORD" \
     --set global.cattle.psp.enabled=false \
@@ -48,20 +48,38 @@ elif echo "$HELM_REPO_URL" | grep -q "releases.rancher.com"; then
   echo "📦 Installing Rancher using official release chart..."
   helm install rancher rancher/rancher --namespace cattle-system \
     --version "$(echo "$RANCHER_VERSION" | tr -d 'v')" \
-    --set hostname=$RANCHER_HOSTNAME \
+    --set hostname="$RANCHER_HOSTNAME" \
     --set replicas=2 \
-    --set bootstrapPassword=$RANCHER_PASSWORD \
+    --set bootstrapPassword="$RANCHER_PASSWORD" \
     --set global.cattle.psp.enabled=false \
     --set insecure=true \
     --wait \
     --timeout=10m \
     --create-namespace \
     --devel
-else
-  echo "📦 Installing Rancher using SUSE private registry chart..."
+elif [[ "$HELM_REPO_URL" == *"https://charts.rancher.com/server-charts/prime"* ]]; then
+  echo "📦 Installing Rancher using SUSE Prime registry chart..."
   helm install rancher rancher/rancher --namespace cattle-system \
     --version "$(echo "$RANCHER_VERSION" | tr -d 'v')" \
-    --set hostname=$RANCHER_HOSTNAME \
+    --set hostname="$RANCHER_HOSTNAME" \
+    --set replicas=2 \
+    --set bootstrapPassword="$RANCHER_PASSWORD" \
+    --set global.cattle.psp.enabled=false \
+    --set insecure=true \
+    --set rancherImageTag="$RANCHER_VERSION" \
+    --set rancherImage='registry.rancher.com/rancher/rancher' \
+    --set rancherImagePullPolicy=Always \
+    --set extraEnv[0].name=CATTLE_AGENT_IMAGE \
+    --set extraEnv[0].value="registry.rancher.com/rancher/rancher-agent:$RANCHER_VERSION" \
+    --wait \
+    --timeout=10m \
+    --create-namespace \
+    --devel
+else
+  echo "📦 Installing Rancher using SUSE staging registry chart..."
+  helm install rancher rancher/rancher --namespace cattle-system \
+    --version "$(echo "$RANCHER_VERSION" | tr -d 'v')" \
+    --set hostname="$RANCHER_HOSTNAME" \
     --set replicas=2 \
     --set bootstrapPassword="$RANCHER_PASSWORD" \
     --set global.cattle.psp.enabled=false \
