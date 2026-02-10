@@ -117,10 +117,10 @@ jobs:
         run: |
           sleep 60
           set -e
-          TEST_LABEL_FILTER=beforeUpgrade go test -timeout 20m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-upgrade-${{ matrix.tag }}.txt
-          TEST_LABEL_FILTER=E2E go test -timeout 30m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-e2e-${{ matrix.tag }}.txt
-          TEST_LABEL_FILTER=afterUpgrade go test -timeout 20m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-upgrade-${{ matrix.tag }}.txt
-          TEST_LABEL_FILTER=E2E go test -timeout 30m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-e2e-${{ matrix.tag }}.txt
+          TEST_LABEL_FILTER=beforeUpgrade go test -timeout 20m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | grep -v "child pods are preserved by default" | tee ~/artifacts/test-output-upgrade-${{ matrix.tag }}.txt
+          TEST_LABEL_FILTER=E2E go test -timeout 30m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | grep -v "child pods are preserved by default" | tee ~/artifacts/test-output-e2e-${{ matrix.tag }}.txt
+          TEST_LABEL_FILTER=afterUpgrade go test -timeout 20m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | grep -v "child pods are preserved by default" | tee ~/artifacts/test-output-upgrade-${{ matrix.tag }}.txt
+          TEST_LABEL_FILTER=E2E go test -timeout 30m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | grep -v "child pods are preserved by default" | tee ~/artifacts/test-output-e2e-${{ matrix.tag }}.txt
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

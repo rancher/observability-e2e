@@ -24,6 +24,9 @@ on:
       qase_api_token:
         description: Qase API token to use for Qase reporting
         required: true
+      scc_regcode:
+        description: Code for SCC registration in tests
+        required: true
     inputs:
       rancher_version:
         description: Rancher Manager version
@@ -274,6 +277,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       QASE_API_TOKEN: ${{ secrets.qase_api_token }}
+      SCC_REGCODE: ${{ secrets.scc_regcode }}
       # Adjust to your project code in Qase:
       QASE_PROJECT_CODE: RM
       QASE_RUN_ID: ${{ needs.pre-qase.outputs.qase_run_id }}

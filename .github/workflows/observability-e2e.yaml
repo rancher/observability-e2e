@@ -50,3 +50,4 @@ jobs:
       aws_region: ${{ secrets.AWS_REGION }}
       key_name: ${{ secrets.AWS_KEY_NAME }}
       qase_api_token: ${{ secrets.QASE_API_TOKEN }}
+      scc_regcode: ${{ secrets.SCC_REGCODE }}
