@@ -361,14 +361,14 @@ jobs:
         run: |
           CATTLE_TEST_CONFIG=$GITHUB_WORKSPACE/cattle-config.yaml \
           TEST_LABEL_FILTER=installation \
-          go test -timeout 30m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-installation.txt
+          go test -timeout 30m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | grep -v "child pods are preserved by default"| tee ~/artifacts/test-output-installation.txt
 
       - name: Run E2E Tests
         id: run_e2e_tests
         run: |
           CATTLE_TEST_CONFIG=$GITHUB_WORKSPACE/cattle-config.yaml \
           TEST_LABEL_FILTER=E2E \
-          go test -timeout 30m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-e2e.txt
+          go test -timeout 30m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | grep -v "child pods are preserved by default" | tee ~/artifacts/test-output-e2e.txt
 
       - name: Cleanup temporary files
         if: ${{ always() }}

@@ -420,3 +420,55 @@ func SafeCleanup(description string, cleanupFunc func()) func() {
 		once.Do(wrapped)
 	}
 }
+
+// CheckIfRancherIsPrime checks if the Rancher deployment image is from Prime registries
+func CheckIfRancherIsPrime(client *rancher.Client) (bool, string) {
+	getRancherImage := []string{"kubectl", "-n", "cattle-system", "get", "deploy", "rancher", "-o", "jsonpath={.spec.template.spec.containers[0].image}"}
+	imageOutput, err := kubectl.Command(client, nil, "local", getRancherImage, "")
+
+	if err != nil {
+		e2e.Logf("Failed to get Rancher deployment image: %v", err)
+		return false, ""
+	}
+
+	imageRegistry := strings.TrimSpace(imageOutput)
+	e2e.Logf("Rancher deployment image: %s", imageRegistry)
+
+	// Check if image is from Prime registries
+	isPrime := strings.Contains(imageRegistry, "registry.rancher.com") ||
+		strings.Contains(imageRegistry, "stgregistry.suse.com")
+
+	return isPrime, imageRegistry
+}
+
+// CheckDashboardEndpoint verifies if the SCC registration dashboard endpoint is accessible
+func CheckDashboardEndpoint(url string, client *rancher.Client) (int, error) {
+	// Skip TLS verification for self-signed certificates
+	httpClient := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return nil
+		},
+	}
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create request: %v", err)
+	}
+
+	// Add authentication token from client session
+	token := client.RancherConfig.AdminToken
+	if token != "" {
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("failed to make request to %s: %v", url, err)
+	}
+	defer resp.Body.Close()
+
+	return resp.StatusCode, nil
+}
