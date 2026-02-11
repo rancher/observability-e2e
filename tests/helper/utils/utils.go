@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"text/template"
+	"time"
 
 	"github.com/creasty/defaults"
 	ginkgo "github.com/onsi/ginkgo/v2"
@@ -446,6 +447,7 @@ func CheckIfRancherIsPrime(client *rancher.Client) (bool, string) {
 func CheckDashboardEndpoint(url string, client *rancher.Client) (int, error) {
 	// Skip TLS verification for self-signed certificates
 	httpClient := &http.Client{
+		Timeout: 30 * time.Second, // Prevent hung connections from stalling test runs
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		},

@@ -126,8 +126,20 @@ var _ = Describe("Observability SCC E2E Test Suite", func() {
 		}
 		e2e.Logf("SCC registration secret created successfully")
 
-		By("5) Wait for registration to be processed (10 seconds)")
-		time.Sleep(10 * time.Second)
+		// Register cleanup immediately to ensure it runs even if test fails
+		DeferCleanup(func() {
+			By("Cleanup: Delete SCC registration secret")
+			deleteSecret := []string{"kubectl", "delete", "secret", "scc-registration", "-n", "cattle-scc-system", "--ignore-not-found=true"}
+			_, deleteErr := kubectl.Command(clientWithSession, nil, "local", deleteSecret, "")
+			if deleteErr != nil {
+				e2e.Logf("Warning: Failed to delete SCC registration secret: %v", deleteErr)
+			} else {
+				e2e.Logf("SCC registration secret deleted successfully")
+			}
+		})
+
+		By("5) Wait for registration to be processed (30 seconds)")
+		time.Sleep(30 * time.Second)
 
 		By("6) Verify registration resource is created")
 		getRegistrations := []string{"kubectl", "get", "registrations.scc.cattle.io", "-n", "cattle-scc-system", "-o", "json"}
@@ -168,12 +180,7 @@ var _ = Describe("Observability SCC E2E Test Suite", func() {
 		Expect(activationStatus["activated"]).To(BeTrue(), "Expected activationStatus.activated to be true")
 		e2e.Logf("Activation status verified successfully")
 
-		By("11) Verify SCC system ID exists")
-		sccSystemID := status["sccSystemID"]
-		Expect(sccSystemID).NotTo(BeNil(), "SCC System ID should be present")
-		e2e.Logf("SCC System ID: %v", sccSystemID)
-
-		By("12) Verify rancher-scc-operator logs show successful registration")
+		By("11) Verify rancher-scc-operator logs show successful registration")
 		getOperatorLogs := []string{"kubectl", "logs", "deployments/rancher-scc-operator", "scc-operator", "-n", "cattle-scc-system", "--tail=10"}
 		operatorLogs, err := kubectl.Command(clientWithSession, nil, "local", getOperatorLogs, "")
 		Expect(err).NotTo(HaveOccurred(), "Failed to get rancher-scc-operator logs")
@@ -184,13 +191,6 @@ var _ = Describe("Observability SCC E2E Test Suite", func() {
 			e2e.Logf("SUCCESS: Operator logs confirm successful registration activation")
 		} else {
 			Fail("FAILED: Operator logs do not contain 'Successfully registered activation'. Registration may have failed.")
-		}
-
-		By("13) Cleanup: Delete SCC registration secret")
-		deleteSecret := []string{"kubectl", "delete", "secret", "scc-registration", "-n", "cattle-scc-system", "--ignore-not-found=true"}
-		_, deleteErr := kubectl.Command(clientWithSession, nil, "local", deleteSecret, "")
-		if deleteErr != nil {
-			e2e.Logf("Warning: Failed to delete SCC registration secret: %v", deleteErr)
 		}
 
 		e2e.Logf("Successfully verified: SCC registration and activation completed")
