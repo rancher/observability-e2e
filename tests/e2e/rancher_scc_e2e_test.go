@@ -30,7 +30,7 @@ import (
 	e2e "k8s.io/kubernetes/test/e2e/framework"
 )
 
-var _ = Describe("Observability SCC E2E Test Suite", func() {
+var _ = Describe("SCC E2E Test Suite", func() {
 	var clientWithSession *rancher.Client
 
 	JustBeforeEach(func() {
@@ -55,7 +55,7 @@ var _ = Describe("Observability SCC E2E Test Suite", func() {
 
 		// Check if CRD exists - kubectl returns error message in output if not found
 		if err != nil || strings.Contains(crdOutput, "NotFound") || strings.Contains(crdOutput, "not found") {
-			Skip("Skipping SCC test: Registration CRD not found. SCC feature may not be available in this cluster.")
+			Fail("Failed SCC test: Rancher Prime Registration CRD not found.")
 		}
 		Expect(crdOutput).NotTo(BeEmpty(), "Registration CRD not found")
 		e2e.Logf("Registration CRD exists: %s", strings.TrimSpace(crdOutput))
@@ -81,7 +81,7 @@ var _ = Describe("Observability SCC E2E Test Suite", func() {
 		statusCode, err := utils.CheckDashboardEndpoint(settingsEndpoint, clientWithSession)
 		Expect(err).NotTo(HaveOccurred(), "Failed to access SCC registration settings page")
 		Expect(statusCode).To(Equal(http.StatusOK), "Expected HTTP 200 OK for SCC registration settings page, got %d", statusCode)
-		e2e.Logf("SCC registration settings page is accessible at: %s", settingsEndpoint)
+		e2e.Logf("SCC registration settings page is accessible")
 
 		By("5) Verify unregistered status")
 		e2e.Logf("Successfully verified: Rancher Prime cluster shows unregistered SCC status")
@@ -102,7 +102,7 @@ var _ = Describe("Observability SCC E2E Test Suite", func() {
 		crdOutput, err := kubectl.Command(clientWithSession, nil, "local", checkRegistrationCRD, "")
 
 		if err != nil || strings.Contains(crdOutput, "NotFound") || strings.Contains(crdOutput, "not found") {
-			Skip("Skipping SCC test: Registration CRD not found. SCC feature may not be available in this cluster.")
+			Fail("Failed SCC test: Rancher Prime Registration CRD not found.")
 		}
 
 		By("3) Get SCC registration code from environment variable")
@@ -113,22 +113,50 @@ var _ = Describe("Observability SCC E2E Test Suite", func() {
 		}
 		e2e.Logf("SCC registration code retrieved from environment variable")
 
-		By("4) Create SCC registration secret")
+		By("4) Patch server-url setting before creating registration secret")
+		rancherHostname := clientWithSession.RancherConfig.Host
+		// Ensure URL has proper scheme
+		if !strings.HasPrefix(rancherHostname, "http://") && !strings.HasPrefix(rancherHostname, "https://") {
+			rancherHostname = "https://" + rancherHostname
+		}
+		patchServerURL := []string{
+			"kubectl", "patch", "setting", "server-url",
+			"--type=merge",
+			"-p", fmt.Sprintf("{\"value\":\"%s\"}", rancherHostname),
+		}
+		_, err = kubectl.Command(clientWithSession, nil, "local", patchServerURL, "")
+		if err != nil {
+			e2e.Logf("Warning: Failed to patch server-url setting: %v", err)
+		} else {
+			e2e.Logf("Patched server-url setting")
+		}
+
+		// Wait for the setting to propagate
+		time.Sleep(30 * time.Second)
+
+		By("5) Create SCC registration secret")
+		// Create secret with type 'secret' and correct field 'registrationType' instead of 'mode'
 		createSecret := []string{
 			"kubectl", "create", "secret", "generic", "scc-registration",
 			"-n", "cattle-scc-system",
-			"--from-literal=mode=online",
+			"--type=secret",
+			"--from-literal=registrationType=online",
 			fmt.Sprintf("--from-literal=regCode=%s", regCode),
 		}
 		_, err = kubectl.Command(clientWithSession, nil, "local", createSecret, "")
 		if err != nil {
-			Fail("Failed to create SCC registration secret")
+			Fail(fmt.Sprintf("Failed to create SCC registration secret: %v", err))
 		}
 		e2e.Logf("SCC registration secret created successfully")
 
 		// Register cleanup immediately to ensure it runs even if test fails
 		DeferCleanup(func() {
-			By("Cleanup: Delete SCC registration secret")
+			By("Cleanup: Delete SCC registration resources")
+			// Delete registration resources first
+			deleteRegs := []string{"kubectl", "delete", "registrations.scc.cattle.io", "--all", "-n", "cattle-scc-system", "--ignore-not-found=true"}
+			_, _ = kubectl.Command(clientWithSession, nil, "local", deleteRegs, "")
+
+			// Delete secret
 			deleteSecret := []string{"kubectl", "delete", "secret", "scc-registration", "-n", "cattle-scc-system", "--ignore-not-found=true"}
 			_, deleteErr := kubectl.Command(clientWithSession, nil, "local", deleteSecret, "")
 			if deleteErr != nil {
@@ -138,49 +166,87 @@ var _ = Describe("Observability SCC E2E Test Suite", func() {
 			}
 		})
 
-		By("5) Wait for registration to be processed (30 seconds)")
-		time.Sleep(30 * time.Second)
+		By("6) Wait for registration resource to be created and fully processed")
+		var items []interface{}
 
-		By("6) Verify registration resource is created")
-		getRegistrations := []string{"kubectl", "get", "registrations.scc.cattle.io", "-n", "cattle-scc-system", "-o", "json"}
-		registrationOutput, err := kubectl.Command(clientWithSession, nil, "local", getRegistrations, "")
-		Expect(err).NotTo(HaveOccurred(), "Failed to get registration resources")
-		Expect(registrationOutput).NotTo(BeEmpty(), "Registration output is empty")
+		// Poll with Eventually to handle timing differences between local and CI environments
+		Eventually(func() error {
+			getRegistrations := []string{"kubectl", "get", "registrations.scc.cattle.io", "-n", "cattle-scc-system", "-o", "json"}
+			output, err := kubectl.Command(clientWithSession, nil, "local", getRegistrations, "")
+			if err != nil {
+				return fmt.Errorf("failed to get registration resources: %w", err)
+			}
+			if output == "" {
+				return fmt.Errorf("registration output is empty")
+			}
 
-		// Parse JSON output
-		var registrationList map[string]interface{}
-		err = json.Unmarshal([]byte(registrationOutput), &registrationList)
-		Expect(err).NotTo(HaveOccurred(), "Failed to parse registration JSON output")
+			// Parse JSON output
+			var tempList map[string]interface{}
+			err = json.Unmarshal([]byte(output), &tempList)
+			if err != nil {
+				return fmt.Errorf("failed to parse registration JSON output: %w", err)
+			}
 
-		items := registrationList["items"].([]interface{})
+			tempItems, ok := tempList["items"].([]interface{})
+			if !ok {
+				return fmt.Errorf("items field not found or invalid type in registration output")
+			}
+
+			if len(tempItems) == 0 {
+				return fmt.Errorf("no registration resources found yet, still waiting...")
+			}
+
+			// Check if registration has status (meaning it's been processed)
+			registration, ok := tempItems[0].(map[string]interface{})
+			if !ok {
+				return fmt.Errorf("registration item is not a valid object")
+			}
+
+			status, hasStatus := registration["status"].(map[string]interface{})
+			if !hasStatus {
+				return fmt.Errorf("registration resource exists but status not yet populated")
+			}
+
+			// Check if activation status exists
+			_, hasActivation := status["activationStatus"].(map[string]interface{})
+			if !hasActivation {
+				return fmt.Errorf("registration resource exists but activationStatus not yet populated")
+			}
+
+			// Success - store items for later use
+			items = tempItems
+			return nil
+		}, 2*time.Minute, 5*time.Second).Should(Succeed(), "Registration resource was not created or fully processed within timeout")
+
+		By("7) Verify registration resource is created and processed")
 		Expect(len(items)).To(BeNumerically(">", 0), "No registration resources found")
 
 		registration := items[0].(map[string]interface{})
 		spec := registration["spec"].(map[string]interface{})
 		status := registration["status"].(map[string]interface{})
 
-		By("7) Verify registration MODE is online")
+		By("8) Verify registration MODE is online")
 		mode := spec["mode"].(string)
 		Expect(mode).To(Equal("online"), "Expected MODE to be 'online', got '%s'", mode)
 		e2e.Logf("Registration MODE is 'online' as expected")
 
-		By("8) Verify REGISTRATION ACTIVE status")
+		By("9) Verify REGISTRATION ACTIVE status")
 		activationStatus := status["activationStatus"].(map[string]interface{})
 		activated := activationStatus["activated"].(bool)
 		Expect(activated).To(BeTrue(), "Expected registration to be activated")
 		e2e.Logf("Registration is activated: %v", activated)
 
-		By("9) Verify registered product starts with 'SUSE Rancher'")
+		By("10) Verify registered product starts with 'SUSE Rancher'")
 		registeredProduct, exists := status["registeredProduct"].(string)
 		Expect(exists).To(BeTrue(), "registeredProduct field not found in status")
 		Expect(registeredProduct).To(HavePrefix("SUSE Rancher"), "Expected registeredProduct to start with 'SUSE Rancher', got '%s'", registeredProduct)
 		e2e.Logf("Registered product: %s", registeredProduct)
 
-		By("10) Verify activation status is true")
+		By("11) Verify activation status is true")
 		Expect(activationStatus["activated"]).To(BeTrue(), "Expected activationStatus.activated to be true")
 		e2e.Logf("Activation status verified successfully")
 
-		By("11) Verify rancher-scc-operator logs show successful registration")
+		By("12) Verify rancher-scc-operator logs show successful registration")
 		getOperatorLogs := []string{"kubectl", "logs", "deployments/rancher-scc-operator", "scc-operator", "-n", "cattle-scc-system", "--tail=10"}
 		operatorLogs, err := kubectl.Command(clientWithSession, nil, "local", getOperatorLogs, "")
 		Expect(err).NotTo(HaveOccurred(), "Failed to get rancher-scc-operator logs")
