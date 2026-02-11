@@ -428,6 +428,7 @@ func CheckIfRancherIsPrime(client *rancher.Client) (bool, string) {
 
 	if err != nil {
 		e2e.Logf("Failed to get Rancher deployment image: %v", err)
+		ginkgo.Fail(fmt.Sprintf("Failed to get Rancher deployment image: %v", err))
 		return false, ""
 	}
 
