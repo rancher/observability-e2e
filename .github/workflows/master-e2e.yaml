@@ -363,6 +363,7 @@ jobs:
       - name: Run Installation Charts Tests
         id: run_installation_tests
         run: |
+          set -o pipefail
           CATTLE_TEST_CONFIG=$GITHUB_WORKSPACE/cattle-config.yaml \
           TEST_LABEL_FILTER=installation \
           go test -timeout 30m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | grep -v "child pods are preserved by default"| tee ~/artifacts/test-output-installation.txt
@@ -370,6 +371,7 @@ jobs:
       - name: Run E2E Tests
         id: run_e2e_tests
         run: |
+          set -o pipefail
           CATTLE_TEST_CONFIG=$GITHUB_WORKSPACE/cattle-config.yaml \
           TEST_LABEL_FILTER=E2E \
           go test -timeout 30m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | grep -v "child pods are preserved by default" | tee ~/artifacts/test-output-e2e.txt
@@ -389,9 +391,12 @@ jobs:
         if: always()
         run: |
           for log_file in ~/artifacts/test-output-installation.txt ~/artifacts/test-output-e2e.txt; do
-            if [[ -f "$log_file" ]] && grep -q "FAIL" "$log_file"; then
-              echo "$(basename "$log_file") contains failures!"
-              exit 1
+            if [[ -f "$log_file" ]]; then
+              if grep -q "FAIL!" "$log_file" || grep -E "^FAIL[[:space:]]" "$log_file"; then
+                echo "$(basename "$log_file") contains failures!"
+                grep -E "FAIL!|^FAIL[[:space:]]" "$log_file" || true
+                exit 1
+              fi
             fi
           done
 

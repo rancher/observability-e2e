@@ -119,7 +119,7 @@ jobs:
         id: run_observability_tests
         run: |
           sleep 60
-          set -e
+          set -eo pipefail
           TEST_LABEL_FILTER=installation go test -timeout 20m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v  | grep -v "child pods are preserved by default" | tee ~/artifacts/test-output-installation-${{ matrix.tag }}.txt
           TEST_LABEL_FILTER=E2E go test -timeout 30m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | grep -v "child pods are preserved by default" | tee ~/artifacts/test-output-e2e-${{ matrix.tag }}.txt
 
@@ -140,9 +140,9 @@ jobs:
         run: |
           for log_file in ~/artifacts/*; do
             if [[ -f "$log_file" ]]; then
-              if grep -q "FAIL!" "$log_file"; then
+              if grep -q "FAIL!" "$log_file" || grep -E "^FAIL[[:space:]]" "$log_file"; then
                 echo "RANCHER_VERSION=${{ matrix.tag }} failure encounter in $(basename "$log_file") contains failures!"
-                grep "FAIL!" "$log_file"
+                grep -E "FAIL!|^FAIL[[:space:]]" "$log_file" || true
                 exit 1
               else
                 echo "RANCHER_VERSION=${{ matrix.tag }} test successfully passed with file details -> $(basename "$log_file")"

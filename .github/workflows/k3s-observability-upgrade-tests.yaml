@@ -77,7 +77,7 @@ jobs:
         id: run_observability_upgrade_tests
         run: |
           sleep 90
-          set -e
+          set -eo pipefail
           TEST_LABEL_FILTER=beforeUpgrade go test -timeout 25m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-upgrade-${{ matrix.k3s_version }}.txt
           sleep 60  # Stabilization period
           TEST_LABEL_FILTER=E2E go test -timeout 30m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-e2e-${{ matrix.k3s_version }}.txt
@@ -107,9 +107,9 @@ jobs:
         run: |
           for log_file in ~/artifacts/*; do
             if [[ -f "$log_file" ]]; then
-              if grep -q "FAIL!" "$log_file"; then
+              if grep -q "FAIL!" "$log_file" || grep -E "^FAIL[[:space:]]" "$log_file"; then
                 echo "K3S_VERSION=${{ matrix.k3s_version }} RANCHER_VERSION=${{ matrix.rancher_version }} failure encounter in $(basename "$log_file") contains failures!"
-                grep -A1 -B1 "FAIL!" "$log_file"
+                grep -E "FAIL!|^FAIL[[:space:]]" "$log_file" || true
                 exit 1
               else
                 echo "K3S_VERSION=${{ matrix.k3s_version }} RANCHER_VERSION=${{ matrix.rancher_version }} test successfully passed with version and file details -> $(basename "$log_file")"
