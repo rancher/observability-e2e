@@ -79,8 +79,9 @@ jobs:
       - name: Run Observability Charts Tests
         id: run_observability_tests
         run: |
+          set -o pipefail
           sleep 60  # Stabilization period before E2E tests
-          TEST_LABEL_FILTER=installation go test -timeout 30m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | tee ~/artifacts/test-output-e2e-${{ matrix.k3s_version }}.txt
+          TEST_LABEL_FILTER=installation go test -timeout 30m github.com/rancher/observability-e2e/tests/e2e -v -count=1 -ginkgo.v | grep -v "child pods are preserved by default" | tee ~/artifacts/test-output-e2e-${{ matrix.k3s_version }}.txt
 
       - name: Run Tests and Prepare Artifact Name
         run: |
