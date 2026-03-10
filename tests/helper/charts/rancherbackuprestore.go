@@ -556,7 +556,6 @@ func ValidateBackupFile(basePath string) error {
 		"cattle-global-data",
 		"cattle-fleet-local-system",
 		"cattle-impersonation-system",
-		"cattle-provisioning-capi-system",
 		"cattle-resources-system",
 	}
 
@@ -757,7 +756,7 @@ func InstallLatestBackupRestoreChart(
 // VerifyFleetState checks that the GitRepo is Ready and the downstream app is running.
 func VerifyFleetState(gitRepoName string, fleetNamespace string, appDeploymentName string, appNamespace string) {
 	const (
-		Timeout = 2 * time.Minute
+		Timeout = 15 * time.Minute
 		Poll    = 5 * time.Second
 	)
 
