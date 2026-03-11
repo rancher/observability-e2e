@@ -207,6 +207,10 @@ var _ = DescribeTable("Test: Validate the Backup and Restore Upgrade and Rollbac
 		Expect(err).NotTo(HaveOccurred(), "Scale down the deployment to 0, so restore will be started")
 		time.Sleep(1 * time.Minute)
 
+		By("Uninstall rancher-webhook before restore (this is workaround step added for restore successfully)")
+		_, err = helm.Execute("", "uninstall", "rancher-webhook", "-n", "cattle-system")
+		Expect(err).NotTo(HaveOccurred(), "Failed to uninstall rancher-webhook")
+
 		By("create the restore-migation yaml and apply it")
 		migrationYamlData := charts.MigrationYamlData{
 			BackupFilename: filename,
