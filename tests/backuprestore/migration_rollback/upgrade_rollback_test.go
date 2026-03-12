@@ -211,7 +211,7 @@ var _ = DescribeTable("Test: Validate the Backup and Restore Upgrade and Rollbac
 		_, err = helm.Execute("", "uninstall", "rancher-webhook", "-n", "cattle-system")
 		Expect(err).NotTo(HaveOccurred(), "Failed to uninstall rancher-webhook")
 
-		By("create the restore-migation yaml and apply it")
+		By("create the restore-rollback yaml and apply it")
 		migrationYamlData := charts.MigrationYamlData{
 			BackupFilename: filename,
 			BucketName:     BackupRestoreConfig.S3BucketName,
@@ -220,13 +220,13 @@ var _ = DescribeTable("Test: Validate the Backup and Restore Upgrade and Rollbac
 			Endpoint:       BackupRestoreConfig.S3Endpoint,
 		}
 		err = utils.GenerateYAMLFromTemplate(
-			utils.GetYamlPath("tests/helper/yamls/restore-migration.template.yaml"),
-			"restore-migration.yaml",
+			utils.GetYamlPath("tests/helper/yamls/restore-rollback.template.yaml"),
+			"restore-rollback.yaml",
 			migrationYamlData,
 		)
 		Expect(err).NotTo(HaveOccurred(), "Failed to create the backup restore file")
 
-		_, err = localkubectl.Execute("apply", "-f", "restore-migration.yaml")
+		_, err = localkubectl.Execute("apply", "-f", "restore-rollback.yaml")
 		Expect(err).NotTo(HaveOccurred(), "Failed to apply the Restore Process")
 		e2e.Logf("Waiting for 5 minutes to see backup is restored ...")
 		time.Sleep(5 * time.Minute)
